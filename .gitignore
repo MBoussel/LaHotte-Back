@@ -1,0 +1,16 @@
+# Environnement virtuel
+venv/
+
+# Fichiers compilés Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Base de données locale
+*.db
+
+# Réglages locaux VSCode
+.vscode/
+
+# Autres fichiers temporaires
+*.log
