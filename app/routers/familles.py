@@ -29,13 +29,24 @@ def rechercher_familles_publiques(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Rechercher des familles publiques.
-    """
-    familles = db.query(Famille).filter(
-        Famille.is_public == True,
-        Famille.nom.ilike(f"%{query}%")
-    ).offset(skip).limit(limit).all()
+    """Rechercher des familles publiques."""
+    print(f"🔍 Recherche: query='{query}', is_public=True")  # Debug
+    
+    # Si la recherche est vide, retourner toutes les familles publiques
+    if not query or query.strip() == "":
+        familles = db.query(Famille).filter(
+            Famille.is_public == True
+        ).offset(skip).limit(limit).all()
+    else:
+        # Recherche avec ILIKE (insensible à la casse)
+        familles = db.query(Famille).filter(
+            Famille.is_public == True,
+            Famille.nom.ilike(f"%{query}%")
+        ).offset(skip).limit(limit).all()
+    
+    print(f"✅ Trouvé {len(familles)} familles")  # Debug
+    for f in familles:
+        print(f"   - {f.nom} (public={f.is_public})")  # Debug
     
     return familles
 
