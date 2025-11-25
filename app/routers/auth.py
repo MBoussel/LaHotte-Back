@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from app.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserResponse, Token
+from app.schemas.user import UserCreate, UserResponse
 from app.core.security import (
     get_password_hash,
     verify_password,
@@ -13,11 +13,23 @@ from app.core.security import (
     get_current_active_user
 )
 from app.core.config import settings
+from pydantic import BaseModel
 
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"]
 )
+
+
+# Modèles Pydantic pour les réponses
+class LoginUserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+
+class LoginResponse(BaseModel):
+    message: str
+    user: LoginUserResponse
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -42,8 +54,8 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         email=user.email,
         username=user.username,
         hashed_password=get_password_hash(user.password),
-        first_name=user.first_name if hasattr(user, 'first_name') else "",
-        last_name=user.last_name if hasattr(user, 'last_name') else ""
+        first_name=getattr(user, 'first_name', ""),
+        last_name=getattr(user, 'last_name', "")
     )
     
     db.add(db_user)
@@ -53,7 +65,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 
-@router.post("/login")
+@router.post("/login", response_model=LoginResponse)
 def login(
     response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -89,17 +101,17 @@ def login(
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
     
-    return {
-        "message": "Connexion réussie",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email
-        }
-    }
+    return LoginResponse(
+        message="Connexion réussie",
+        user=LoginUserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email
+        )
+    )
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=None)
 def logout(response: Response):
     """Déconnexion - Supprime le cookie"""
     response.delete_cookie(key="access_token")
