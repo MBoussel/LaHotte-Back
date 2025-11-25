@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 import secrets
+from sqlalchemy.orm import joinedload
 
 from app.database import get_db
 from app.models.famille import Famille
@@ -31,23 +32,24 @@ def rechercher_familles_publiques(
     current_user: User = Depends(get_current_active_user)
 ):
     """Rechercher des familles publiques."""
-    print(f"🔍 Recherche: query='{query}', is_public=True")  # Debug
+    from sqlalchemy import or_, func
     
-    # Si la recherche est vide, retourner toutes les familles publiques
-    if not query or query.strip() == "":
-        familles = db.query(Famille).filter(
-            Famille.is_public == True
-        ).offset(skip).limit(limit).all()
-    else:
-        # Recherche avec ILIKE (insensible à la casse)
-        familles = db.query(Famille).filter(
-            Famille.is_public == True,
-            Famille.nom.ilike(f"%{query}%")
-        ).offset(skip).limit(limit).all()
+    # Récupérer toutes les familles publiques AVEC leurs membres
+    base_query = db.query(Famille).options(
+        joinedload(Famille.membres)  # ← CHARGE les membres en même temps
+    ).filter(Famille.is_public == True)
     
-    print(f"✅ Trouvé {len(familles)} familles")  # Debug
-    for f in familles:
-        print(f"   - {f.nom} (public={f.is_public})")  # Debug
+    # Si une recherche est fournie
+    if query and query.strip():
+        query_lower = query.strip().lower()
+        base_query = base_query.filter(
+            or_(
+                func.lower(Famille.nom).contains(query_lower),
+                func.lower(Famille.description).contains(query_lower)
+            )
+        )
+    
+    familles = base_query.offset(skip).limit(limit).all()
     
     return familles
 
