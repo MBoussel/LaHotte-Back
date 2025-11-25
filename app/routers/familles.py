@@ -14,6 +14,7 @@ from app.core.security import get_current_active_user
 from app.core.email import send_invitation_email
 from app.models.demande_adhesion import DemandeAdhesion
 from app.schemas.demande_adhesion import DemandeAdhesionCreate, DemandeAdhesionResponse
+from app.core.email import send_invitation_email, send_demande_adhesion_email
 
 
 router = APIRouter(
@@ -58,9 +59,7 @@ def demander_adhesion(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Demander à rejoindre une famille publique.
-    """
+    """Demander à rejoindre une famille publique."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
     if not famille:
@@ -69,11 +68,9 @@ def demander_adhesion(
     if not famille.is_public:
         raise HTTPException(status_code=400, detail="Cette famille n'est pas publique")
     
-    # Vérifier si déjà membre
     if current_user in famille.membres:
         raise HTTPException(status_code=400, detail="Vous êtes déjà membre")
     
-    # Vérifier si demande existe déjà
     existing = db.query(DemandeAdhesion).filter(
         DemandeAdhesion.famille_id == famille_id,
         DemandeAdhesion.user_id == current_user.id
@@ -91,6 +88,25 @@ def demander_adhesion(
     
     db.add(db_demande)
     db.commit()
+    
+    # Récupérer le créateur de la famille
+    createur = db.query(User).filter(User.id == famille.creator_id).first()
+    
+    # Envoyer l'email au créateur
+    if createur:
+        try:
+            send_demande_adhesion_email(
+                createur_email=createur.email,
+                createur_nom=createur.username,
+                demandeur_nom=current_user.username,
+                demandeur_email=current_user.email,
+                famille_nom=famille.nom,
+                message_demande=demande.message,
+                famille_id=famille_id
+            )
+            print(f"📧 Email de demande envoyé à {createur.email}")
+        except Exception as e:
+            print(f"⚠️  Erreur envoi email (demande créée quand même): {e}")
     
     return {"message": "Demande envoyée au créateur de la famille"}
 
@@ -432,42 +448,56 @@ def retirer_membre(
 
 from app.core.email import send_invitation_email
 
-@router.post("/{famille_id}/invitations", response_model=InvitationResponse)
-def creer_invitation(
+from app.core.email import send_invitation_email
+
+@router.post("/{famille_id}/invite", status_code=status.HTTP_201_CREATED)
+def inviter_membre(
     famille_id: int,
-    invitation: InvitationCreate,
+    invitation_data: InvitationCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Créer une invitation et envoyer un email."""
-    famille = db.query(Famille).filter(Famille.id == famille_id).first()
+    """Inviter quelqu'un à rejoindre une famille par email."""
+    import secrets
     
+    # Vérifier que la famille existe
+    famille = db.query(Famille).filter(Famille.id == famille_id).first()
     if not famille:
         raise HTTPException(status_code=404, detail="Famille non trouvée")
     
+    # Vérifier que je suis le créateur
     if famille.creator_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Seul le créateur peut inviter")
+        raise HTTPException(
+            status_code=403,
+            detail="Seul le créateur peut inviter des membres"
+        )
     
-    user = db.query(User).filter(User.email == invitation.email).first()
-    if user and user in famille.membres:
-        raise HTTPException(status_code=400, detail="Cet utilisateur est déjà membre")
+    # Vérifier si l'utilisateur existe déjà et est déjà membre
+    existing_user = db.query(User).filter(User.email == invitation_data.email).first()
+    if existing_user and existing_user in famille.membres:
+        raise HTTPException(
+            status_code=400,
+            detail="Cet utilisateur est déjà membre de la famille"
+        )
     
-    existing = db.query(Invitation).filter(
+    # Vérifier si une invitation existe déjà
+    existing_invitation = db.query(Invitation).filter(
         Invitation.famille_id == famille_id,
-        Invitation.email == invitation.email,
+        Invitation.email == invitation_data.email,
         Invitation.accepted == False
     ).first()
     
-    if existing:
-        # Renvoyer l'email
-        send_invitation_email(invitation.email, famille.nom, existing.token)
-        return existing
+    if existing_invitation:
+        raise HTTPException(
+            status_code=400,
+            detail="Une invitation a déjà été envoyée à cette adresse"
+        )
     
     # Créer l'invitation
     token = secrets.token_urlsafe(32)
     db_invitation = Invitation(
         famille_id=famille_id,
-        email=invitation.email,
+        email=invitation_data.email,
         token=token
     )
     
@@ -476,9 +506,22 @@ def creer_invitation(
     db.refresh(db_invitation)
     
     # Envoyer l'email
-    send_invitation_email(invitation.email, famille.nom, token)
+    try:
+        send_invitation_email(
+            email=invitation_data.email,
+            famille_nom=famille.nom,
+            token=token,
+            inviteur_nom=current_user.username
+        )
+        print(f"📧 Invitation envoyée à {invitation_data.email}")
+    except Exception as e:
+        print(f"⚠️  Erreur envoi email (invitation créée quand même): {e}")
+        # On ne bloque pas la création de l'invitation si l'email échoue
     
-    return db_invitation
+    return {
+        "message": f"Invitation envoyée à {invitation_data.email}",
+        "invitation_id": db_invitation.id
+    }
 
 
 @router.get("/invitations/pending", response_model=List[InvitationResponse])
