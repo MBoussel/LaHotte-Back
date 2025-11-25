@@ -65,7 +65,7 @@ def creer_cadeau(
     return response
 
 
-@router.get("/", response_model=List[CadeauResponse])
+@router.get("/", response_model=None)
 def lister_cadeaux(
     skip: int = 0,
     limit: int = 100,
@@ -86,7 +86,7 @@ def lister_cadeaux(
     return result
 
 
-@router.get("/me", response_model=List[CadeauResponse])
+@router.get("/me", response_model=None)
 def lister_mes_cadeaux(
     skip: int = 0,
     limit: int = 100,
