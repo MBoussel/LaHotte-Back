@@ -4,9 +4,9 @@ Application FastAPI pour gérer des listes de cadeaux
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from app.core.config import settings
 from app.database import engine, Base
-from app.routers import cadeaux, auth, familles
+from app.routers import cadeaux, auth, familles, contributions
 
 # Créer les tables dans la base de données
 Base.metadata.create_all(bind=engine)
@@ -18,10 +18,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configuration CORS (pour permettre les requêtes depuis un frontend)
+# Configuration CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # À restreindre en production
+    allow_origins=[settings.FRONTEND_URL],  # Depuis .env
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,6 +31,7 @@ app.add_middleware(
 app.include_router(cadeaux.router)
 app.include_router(auth.router)
 app.include_router(familles.router) 
+app.include_router(contributions.router)
 
 
 @app.get("/", tags=["Root"])
@@ -45,7 +46,8 @@ def root():
         "endpoints": {
             "cadeaux": "/cadeaux",
             "auth": "/auth",
-            "familles": "/familles" 
+            "familles": "/familles",
+            "contributions": "/contributions"
         }
     }
 

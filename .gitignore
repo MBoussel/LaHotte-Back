@@ -1,16 +1,29 @@
-# Environnement virtuel
-venv/
-
-# Fichiers compilés Python
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
 
-# Base de données locale
+# Base de données
 *.db
+*.sqlite
+*.sqlite3
 
-# Réglages locaux VSCode
+# Variables d'environnement
+.env
+
+# IDE
 .vscode/
+.idea/
+*.swp
 
-# Autres fichiers temporaires
+# Logs
 *.log
+
+# OS
+.DS_Store
+Thumbs.db

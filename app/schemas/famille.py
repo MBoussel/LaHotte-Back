@@ -6,8 +6,9 @@ from datetime import datetime
 
 class FamilleBase(BaseModel):
     """Schéma de base pour une famille"""
-    nom: str = Field(..., min_length=1, max_length=200, description="Nom de la famille")
-    description: Optional[str] = Field("", max_length=1000, description="Description de la famille")
+    nom: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field("", max_length=1000)
+    is_public: bool = Field(False, description="Si la famille est visible dans la recherche")
 
 
 class FamilleCreate(FamilleBase):

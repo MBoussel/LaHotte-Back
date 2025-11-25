@@ -9,7 +9,7 @@ from app.database import Base
 if TYPE_CHECKING:
     from app.models.cadeau import Cadeau
     from app.models.famille import Famille
-
+from app.models.contribution import Contribution
 
 class User(Base):
     """
@@ -33,6 +33,11 @@ class User(Base):
         cascade="all, delete-orphan",
         foreign_keys="Cadeau.owner_id"
     )
+    contributions: Mapped[List["Contribution"]] = relationship(
+    back_populates="user",
+    cascade="all, delete-orphan"
+)
+
     
     # Familles créées par l'utilisateur
     familles_creees: Mapped[List["Famille"]] = relationship(

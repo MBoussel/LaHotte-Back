@@ -1,30 +1,35 @@
-"""Configuration de la base de données avec SQLAlchemy 2.0"""
+"""Configuration de la base de données"""
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from app.core.config import settings
 
-# URL de la base de données SQLite
-DATABASE_URL = "sqlite:///./cadeaux.db"
+# Créer l'engine avec pool_pre_ping pour PostgreSQL
+if settings.DATABASE_URL.startswith("postgresql"):
+    engine = create_engine(
+        settings.DATABASE_URL,
+        pool_pre_ping=True,  # Vérifie que la connexion est valide
+        pool_size=10,
+        max_overflow=20
+    )
+else:
+    # SQLite pour le dev
+    engine = create_engine(
+        settings.DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
 
-# Créer le moteur SQLAlchemy
-engine = create_engine(
-    DATABASE_URL, 
-    connect_args={"check_same_thread": False},
-    echo=False  # Mettre à True pour voir les requêtes SQL
-)
-
-# Créer la session
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 class Base(DeclarativeBase):
-    """Classe de base pour tous les modèles"""
+    """Classe de base pour tous les modèles SQLAlchemy"""
     pass
 
 
 def get_db():
     """
-    Générateur de session de base de données.
-    À utiliser avec Depends() dans FastAPI.
+    Dependency pour obtenir une session de base de données.
+    Yield la session et la ferme automatiquement après utilisation.
     """
     db = SessionLocal()
     try:
