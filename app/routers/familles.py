@@ -199,6 +199,7 @@ def creer_famille(
     db_famille = Famille(
         nom=famille.nom,
         description=famille.description,
+        is_public=famille.is_public,
         creator_id=current_user.id
     )
     
