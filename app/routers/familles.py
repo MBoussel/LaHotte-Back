@@ -34,10 +34,8 @@ def rechercher_familles_publiques(
     """Rechercher des familles publiques."""
     from sqlalchemy import or_, func
     
-    # Récupérer toutes les familles publiques AVEC leurs membres
-    base_query = db.query(Famille).options(
-        joinedload(Famille.membres)  # ← CHARGE les membres en même temps
-    ).filter(Famille.is_public == True)
+    # Récupérer toutes les familles publiques
+    base_query = db.query(Famille).filter(Famille.is_public == True)
     
     # Si une recherche est fournie
     if query and query.strip():
@@ -50,6 +48,10 @@ def rechercher_familles_publiques(
         )
     
     familles = base_query.offset(skip).limit(limit).all()
+    
+    # Forcer le chargement des membres
+    for famille in familles:
+        _ = len(famille.membres)  
     
     return familles
 
@@ -609,21 +611,17 @@ def lister_invitations_famille(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Lister toutes les invitations d'une famille (pour le créateur).
-    """
+    """Lister toutes les invitations d'une famille (créateur seulement)."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
     if not famille:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Famille non trouvée"
-        )
+        raise HTTPException(status_code=404, detail="Famille non trouvée")
     
     if famille.creator_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seul le créateur peut voir les invitations"
-        )
+        raise HTTPException(status_code=403, detail="Seul le créateur peut voir les invitations")
     
-    return famille.invitations
+    invitations = db.query(Invitation).filter(
+        Invitation.famille_id == famille_id
+    ).all()
+    
+    return invitations
