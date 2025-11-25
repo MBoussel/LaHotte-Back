@@ -171,7 +171,7 @@ def modifier_cadeau(
     return response
 
 
-@router.delete("/{cadeau_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{cadeau_id}", response_model=None,status_code=status.HTTP_204_NO_CONTENT)
 def supprimer_cadeau(
     cadeau_id: int,
     db: Session = Depends(get_db),

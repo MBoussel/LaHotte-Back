@@ -65,7 +65,7 @@ def contribuer_cadeau(
     return db_contribution
 
 
-@router.get("/cadeaux/{cadeau_id}", response_model=List[ContributionWithUser])
+@router.get("/cadeaux/{cadeau_id}", response_model=None)
 def lister_contributions_cadeau(
     cadeau_id: int,
     db: Session = Depends(get_db),
@@ -132,7 +132,7 @@ def mes_contributions(
     return contributions
 
 
-@router.delete("/{contribution_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{contribution_id}", response_model=None,status_code=status.HTTP_204_NO_CONTENT)
 def supprimer_contribution(
     contribution_id: int,
     db: Session = Depends(get_db),
