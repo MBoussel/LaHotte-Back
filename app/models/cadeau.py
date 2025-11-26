@@ -18,12 +18,20 @@ cadeau_familles = Table(
     Column("famille_id", Integer, ForeignKey("familles.id", ondelete="CASCADE"), primary_key=True)
 )
 
+# Table d'association pour les bénéficiaires du cadeau
+cadeau_beneficiaires = Table(
+    "cadeau_beneficiaires",
+    Base.metadata,
+    Column("cadeau_id", Integer, ForeignKey("cadeaux.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+)
+
 
 class Cadeau(Base):
     """
     Table des cadeaux dans la base de données.
     
-    Un cadeau appartient à un utilisateur ET peut être dans plusieurs familles.
+    Un cadeau appartient à un créateur (owner) ET peut avoir plusieurs bénéficiaires.
     """
     __tablename__ = "cadeaux"
     
@@ -45,6 +53,10 @@ class Cadeau(Base):
     familles: Mapped[List["Famille"]] = relationship(
         secondary=cadeau_familles,
         back_populates="cadeaux"
+    )
+    beneficiaires: Mapped[List["User"]] = relationship(
+        secondary=cadeau_beneficiaires,
+        backref="cadeaux_recus"
     )
     contributions: Mapped[List["Contribution"]] = relationship(
         back_populates="cadeau",

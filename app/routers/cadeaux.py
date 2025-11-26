@@ -394,3 +394,33 @@ def lister_cadeaux_famille(
         })
     
     return result
+
+
+@router.get("/beneficiaire/me")
+def lister_cadeaux_beneficiaire(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récupérer tous les cadeaux dont je suis bénéficiaire."""
+    cadeaux = db.query(Cadeau).join(
+        Cadeau.beneficiaires
+    ).filter(
+        User.id == current_user.id
+    ).all()
+    
+    result = []
+    for cadeau in cadeaux:
+        result.append({
+            "id": cadeau.id,
+            "titre": cadeau.titre,
+            "prix": cadeau.prix,
+            "description": cadeau.description,
+            "photo_url": cadeau.photo_url,
+            "lien_achat": cadeau.lien_achat,
+            "owner_id": cadeau.owner_id,
+            "is_purchased": cadeau.is_purchased,
+            "purchased_by_id": cadeau.purchased_by_id,
+            "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
+        })
+    
+    return result
