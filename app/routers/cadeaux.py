@@ -243,3 +243,41 @@ def demarquer_achete(
     db.refresh(cadeau)
     
     return cadeau
+
+@router.get("/famille/{famille_id}")
+def lister_cadeaux_famille(
+    famille_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récupérer tous les cadeaux d'une famille."""
+    from app.models.famille import Famille
+    
+    famille = db.query(Famille).filter(Famille.id == famille_id).first()
+    if not famille:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Famille non trouvée"
+        )
+    
+    if current_user not in famille.membres:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vous devez être membre de cette famille"
+        )
+    
+    result = []
+    for cadeau in famille.cadeaux:
+        result.append({
+            "id": cadeau.id,
+            "titre": cadeau.titre,
+            "prix": cadeau.prix,
+            "description": cadeau.description,
+            "photo_url": cadeau.photo_url,
+            "lien_achat": cadeau.lien_achat,
+            "owner_id": cadeau.owner_id,
+            "is_purchased": cadeau.is_purchased,
+            "purchased_by_id": cadeau.purchased_by_id
+        })
+    
+    return result
