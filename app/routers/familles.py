@@ -215,16 +215,26 @@ def creer_famille(
     return db_famille
 
 
-@router.get("/", response_model=List[FamilleResponse])
+@router.get("/", response_model=List[FamilleWithMembres])
 def lister_mes_familles(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Récupérer toutes MES familles."""
-    db.refresh(current_user)
-    return current_user.familles[skip:skip + limit]
+    """Récupérer toutes MES familles avec leurs membres."""
+    from sqlalchemy.orm import joinedload
+    
+    familles = db.query(Famille).join(
+        Famille.membres
+    ).filter(
+        User.id == current_user.id
+    ).options(
+        joinedload(Famille.membres)
+    ).all()
+    
+    return familles
+
 
 
 @router.get("/{famille_id}", response_model=FamilleWithMembres)

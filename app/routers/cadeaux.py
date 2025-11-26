@@ -1,19 +1,16 @@
-"""Routes API pour les cadeaux"""
+"""Routes pour la gestion des cadeaux"""
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
 
 from app.database import get_db
-from app.models.cadeau import Cadeau
 from app.models.user import User
+from app.models.cadeau import Cadeau
 from app.models.famille import Famille
 from app.schemas.cadeau import CadeauCreate, CadeauUpdate, CadeauResponse
 from app.core.security import get_current_active_user
 
-router = APIRouter(
-    prefix="/cadeaux",
-    tags=["Cadeaux"]
-)
+router = APIRouter(prefix="/cadeaux", tags=["cadeaux"])
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -39,6 +36,25 @@ def creer_cadeau(
             )
         familles.append(famille)
     
+    # Vérifier les bénéficiaires
+    beneficiaires = []
+    if cadeau.beneficiaire_ids:
+        for benef_id in cadeau.beneficiaire_ids:
+            user = db.query(User).filter(User.id == benef_id).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Utilisateur {benef_id} non trouvé"
+                )
+            # Vérifier que le bénéficiaire est membre d'au moins une des familles
+            is_member = any(user in fam.membres for fam in familles)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"{user.username} doit être membre d'au moins une des familles"
+                )
+            beneficiaires.append(user)
+    
     # Créer le cadeau
     db_cadeau = Cadeau(
         titre=cadeau.titre,
@@ -49,14 +65,14 @@ def creer_cadeau(
         owner_id=current_user.id,
     )
     
-    # Ajouter aux familles
+    # Ajouter aux familles et bénéficiaires
     db_cadeau.familles = familles
+    db_cadeau.beneficiaires = beneficiaires
     
     db.add(db_cadeau)
     db.commit()
     db.refresh(db_cadeau)
     
-    # Retourner avec les IDs des familles
     return {
         "id": db_cadeau.id,
         "titre": db_cadeau.titre,
@@ -67,113 +83,181 @@ def creer_cadeau(
         "owner_id": db_cadeau.owner_id,
         "is_purchased": db_cadeau.is_purchased,
         "purchased_by_id": db_cadeau.purchased_by_id,
-        "famille_ids": [f.id for f in db_cadeau.familles]
+        "beneficiaires": [{"id": b.id, "username": b.username} for b in db_cadeau.beneficiaires]
     }
 
 
-@router.get("/", response_model=List[CadeauResponse])
-def lister_cadeaux(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """Récupérer la liste de tous les cadeaux."""
-    cadeaux = db.query(Cadeau).offset(skip).limit(limit).all()
-    return cadeaux
-
-
-@router.get("/me", response_model=List[CadeauResponse])
-def lister_mes_cadeaux(
+@router.get("/")
+def lister_tous_cadeaux(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Récupérer MES cadeaux (ceux que j'ai créés)."""
-    cadeaux = db.query(Cadeau).filter(
-        Cadeau.owner_id == current_user.id
-    ).offset(skip).limit(limit).all()
+    """Récupérer tous les cadeaux (visible uniquement aux admins ou pour debug)."""
+    cadeaux = db.query(Cadeau).offset(skip).limit(limit).all()
     return cadeaux
 
 
-@router.get("/{cadeau_id}", response_model=CadeauResponse)
-def obtenir_cadeau(
-    cadeau_id: int,
-    db: Session = Depends(get_db)
+@router.get("/me")
+def lister_mes_cadeaux(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
-    """Récupérer un cadeau spécifique par son ID."""
-    cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
+    """Récupérer tous mes cadeaux."""
+    cadeaux = db.query(Cadeau).filter(Cadeau.owner_id == current_user.id).all()
     
+    result = []
+    for cadeau in cadeaux:
+        result.append({
+            "id": cadeau.id,
+            "titre": cadeau.titre,
+            "prix": cadeau.prix,
+            "description": cadeau.description,
+            "photo_url": cadeau.photo_url,
+            "lien_achat": cadeau.lien_achat,
+            "owner_id": cadeau.owner_id,
+            "is_purchased": cadeau.is_purchased,
+            "purchased_by_id": cadeau.purchased_by_id,
+            "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
+        })
+    
+    return result
+
+
+@router.get("/{cadeau_id}")
+def recuperer_cadeau(
+    cadeau_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récupérer un cadeau spécifique."""
+    cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
     if not cadeau:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cadeau avec l'ID {cadeau_id} non trouvé"
+            detail="Cadeau non trouvé"
         )
     
-    return cadeau
+    # Vérifier que je suis membre d'au moins une famille qui contient ce cadeau
+    is_member = any(current_user in famille.membres for famille in cadeau.familles)
+    if not is_member and cadeau.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vous n'avez pas accès à ce cadeau"
+        )
+    
+    return {
+        "id": cadeau.id,
+        "titre": cadeau.titre,
+        "prix": cadeau.prix,
+        "description": cadeau.description,
+        "photo_url": cadeau.photo_url,
+        "lien_achat": cadeau.lien_achat,
+        "owner_id": cadeau.owner_id,
+        "is_purchased": cadeau.is_purchased,
+        "purchased_by_id": cadeau.purchased_by_id,
+        "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
+    }
 
 
-@router.put("/{cadeau_id}", response_model=CadeauResponse)
+@router.put("/{cadeau_id}")
 def modifier_cadeau(
     cadeau_id: int,
     cadeau_update: CadeauUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Modifier un cadeau existant."""
-    db_cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
-    
-    if not db_cadeau:
+    """Modifier un cadeau (seulement le propriétaire)."""
+    cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
+    if not cadeau:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cadeau avec l'ID {cadeau_id} non trouvé"
+            detail="Cadeau non trouvé"
         )
     
-    # Vérifier que c'est bien MON cadeau
-    if db_cadeau.owner_id != current_user.id:
+    if cadeau.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous ne pouvez modifier que vos propres cadeaux"
+            detail="Vous n'êtes pas le propriétaire de ce cadeau"
         )
     
-    # Mettre à jour seulement les champs fournis
-    update_data = cadeau_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_cadeau, field, value)
+    # Mettre à jour les champs
+    if cadeau_update.titre is not None:
+        cadeau.titre = cadeau_update.titre
+    if cadeau_update.prix is not None:
+        cadeau.prix = cadeau_update.prix
+    if cadeau_update.description is not None:
+        cadeau.description = cadeau_update.description
+    if cadeau_update.photo_url is not None:
+        cadeau.photo_url = cadeau_update.photo_url
+    if cadeau_update.lien_achat is not None:
+        cadeau.lien_achat = cadeau_update.lien_achat
+    
+    # Mettre à jour les bénéficiaires si fournis
+    if cadeau_update.beneficiaire_ids is not None:
+        beneficiaires = []
+        for benef_id in cadeau_update.beneficiaire_ids:
+            user = db.query(User).filter(User.id == benef_id).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Utilisateur {benef_id} non trouvé"
+                )
+            # Vérifier que le bénéficiaire est membre d'au moins une des familles
+            is_member = any(user in fam.membres for fam in cadeau.familles)
+            if not is_member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"{user.username} doit être membre d'au moins une des familles"
+                )
+            beneficiaires.append(user)
+        cadeau.beneficiaires = beneficiaires
     
     db.commit()
-    db.refresh(db_cadeau)
+    db.refresh(cadeau)
     
-    return db_cadeau
+    return {
+        "id": cadeau.id,
+        "titre": cadeau.titre,
+        "prix": cadeau.prix,
+        "description": cadeau.description,
+        "photo_url": cadeau.photo_url,
+        "lien_achat": cadeau.lien_achat,
+        "owner_id": cadeau.owner_id,
+        "is_purchased": cadeau.is_purchased,
+        "purchased_by_id": cadeau.purchased_by_id,
+        "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
+    }
 
 
-@router.delete("/{cadeau_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{cadeau_id}")
 def supprimer_cadeau(
     cadeau_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Supprimer un cadeau."""
-    db_cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
-    
-    if not db_cadeau:
+    """Supprimer un cadeau (seulement le propriétaire)."""
+    cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
+    if not cadeau:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cadeau avec l'ID {cadeau_id} non trouvé"
+            detail="Cadeau non trouvé"
         )
     
-    # Vérifier que c'est bien MON cadeau
-    if db_cadeau.owner_id != current_user.id:
+    if cadeau.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous ne pouvez supprimer que vos propres cadeaux"
+            detail="Vous n'êtes pas le propriétaire de ce cadeau"
         )
     
-    db.delete(db_cadeau)
+    db.delete(cadeau)
     db.commit()
+    
+    return {"message": "Cadeau supprimé avec succès"}
 
 
-@router.post("/{cadeau_id}/mark-purchased", response_model=CadeauResponse)
+@router.post("/{cadeau_id}/mark-purchased")
 def marquer_achete(
     cadeau_id: int,
     db: Session = Depends(get_db),
@@ -181,39 +265,54 @@ def marquer_achete(
 ):
     """Marquer un cadeau comme acheté."""
     cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
-    
     if not cadeau:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cadeau non trouvé"
         )
     
-    # Vérifier que je ne suis pas le propriétaire
+    # Vérifier que je ne suis PAS le propriétaire
     if cadeau.owner_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous ne pouvez pas marquer votre propre cadeau comme acheté"
+            detail="Vous ne pouvez pas acheter votre propre cadeau"
         )
     
-    # Vérifier que je suis membre d'au moins une famille où se trouve le cadeau
+    # Vérifier que je suis membre d'une famille qui contient ce cadeau
     is_member = any(current_user in famille.membres for famille in cadeau.familles)
     if not is_member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous devez être membre de la famille"
+            detail="Vous devez être membre d'une famille pour acheter ce cadeau"
         )
     
-    # Marquer comme acheté
+    if cadeau.is_purchased:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ce cadeau a déjà été acheté"
+        )
+    
     cadeau.is_purchased = True
     cadeau.purchased_by_id = current_user.id
     
     db.commit()
     db.refresh(cadeau)
     
-    return cadeau
+    return {
+        "id": cadeau.id,
+        "titre": cadeau.titre,
+        "prix": cadeau.prix,
+        "description": cadeau.description,
+        "photo_url": cadeau.photo_url,
+        "lien_achat": cadeau.lien_achat,
+        "owner_id": cadeau.owner_id,
+        "is_purchased": cadeau.is_purchased,
+        "purchased_by_id": cadeau.purchased_by_id,
+        "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
+    }
 
 
-@router.post("/{cadeau_id}/unmark-purchased", response_model=CadeauResponse)
+@router.post("/{cadeau_id}/unmark-purchased")
 def demarquer_achete(
     cadeau_id: int,
     db: Session = Depends(get_db),
@@ -221,28 +320,38 @@ def demarquer_achete(
 ):
     """Annuler le marquage "acheté" d'un cadeau."""
     cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
-    
     if not cadeau:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cadeau non trouvé"
         )
     
-    # Vérifier que c'est moi qui l'ai marqué comme acheté
+    # Seul celui qui a marqué le cadeau peut le démarquer
     if cadeau.purchased_by_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seul celui qui a marqué le cadeau comme acheté peut annuler"
+            detail="Vous n'avez pas marqué ce cadeau comme acheté"
         )
     
-    # Annuler
     cadeau.is_purchased = False
     cadeau.purchased_by_id = None
     
     db.commit()
     db.refresh(cadeau)
     
-    return cadeau
+    return {
+        "id": cadeau.id,
+        "titre": cadeau.titre,
+        "prix": cadeau.prix,
+        "description": cadeau.description,
+        "photo_url": cadeau.photo_url,
+        "lien_achat": cadeau.lien_achat,
+        "owner_id": cadeau.owner_id,
+        "is_purchased": cadeau.is_purchased,
+        "purchased_by_id": cadeau.purchased_by_id,
+        "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
+    }
+
 
 @router.get("/famille/{famille_id}")
 def lister_cadeaux_famille(
@@ -251,9 +360,12 @@ def lister_cadeaux_famille(
     current_user: User = Depends(get_current_active_user)
 ):
     """Récupérer tous les cadeaux d'une famille."""
-    from app.models.famille import Famille
+    from sqlalchemy.orm import joinedload
     
-    famille = db.query(Famille).filter(Famille.id == famille_id).first()
+    famille = db.query(Famille).options(
+        joinedload(Famille.cadeaux).joinedload(Cadeau.beneficiaires)
+    ).filter(Famille.id == famille_id).first()
+    
     if not famille:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -277,7 +389,8 @@ def lister_cadeaux_famille(
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
             "is_purchased": cadeau.is_purchased,
-            "purchased_by_id": cadeau.purchased_by_id
+            "purchased_by_id": cadeau.purchased_by_id,
+            "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
         })
     
     return result
