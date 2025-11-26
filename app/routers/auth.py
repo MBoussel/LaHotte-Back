@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
+from typing import Dict, Any
 
 from app.database import get_db
 from app.models.user import User
@@ -111,8 +112,8 @@ def login(
     )
 
 
-@router.post("/logout", response_model=None)
-def logout(response: Response):
+@router.post("/logout")
+def logout(response: Response) -> Dict[str, str]:
     """Déconnexion - Supprime le cookie"""
     response.delete_cookie(key="access_token")
     return {"message": "Déconnexion réussie"}

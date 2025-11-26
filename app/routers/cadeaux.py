@@ -1,7 +1,7 @@
 """Routes API pour les cadeaux"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
 
 from app.database import get_db
 from app.models.cadeau import Cadeau
@@ -65,7 +65,7 @@ def creer_cadeau(
     return response
 
 
-@router.get("/", response_model=None)
+@router.get("/", response_model=List[CadeauResponse])
 def lister_cadeaux(
     skip: int = 0,
     limit: int = 100,
@@ -86,7 +86,7 @@ def lister_cadeaux(
     return result
 
 
-@router.get("/me", response_model=None)
+@router.get("/me", response_model=List[CadeauResponse])
 def lister_mes_cadeaux(
     skip: int = 0,
     limit: int = 100,
@@ -171,7 +171,7 @@ def modifier_cadeau(
     return response
 
 
-@router.delete("/{cadeau_id}", response_model=None,status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{cadeau_id}", status_code=status.HTTP_204_NO_CONTENT)
 def supprimer_cadeau(
     cadeau_id: int,
     db: Session = Depends(get_db),
@@ -197,8 +197,6 @@ def supprimer_cadeau(
     
     db.delete(db_cadeau)
     db.commit()
-    
-    return None
 
 
 @router.post("/{cadeau_id}/mark-purchased", response_model=CadeauResponse)

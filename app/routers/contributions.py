@@ -1,7 +1,7 @@
 """Routes API pour les contributions"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
 
 from app.database import get_db
 from app.models.contribution import Contribution
@@ -65,7 +65,7 @@ def contribuer_cadeau(
     return db_contribution
 
 
-@router.get("/cadeaux/{cadeau_id}", response_model=None)
+@router.get("/cadeaux/{cadeau_id}", response_model=List[Dict[str, Any]])
 def lister_contributions_cadeau(
     cadeau_id: int,
     db: Session = Depends(get_db),
@@ -132,7 +132,7 @@ def mes_contributions(
     return contributions
 
 
-@router.delete("/{contribution_id}", response_model=None,status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{contribution_id}", status_code=status.HTTP_204_NO_CONTENT)
 def supprimer_contribution(
     contribution_id: int,
     db: Session = Depends(get_db),
@@ -158,5 +158,3 @@ def supprimer_contribution(
     
     db.delete(contribution)
     db.commit()
-    
-    return None

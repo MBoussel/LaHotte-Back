@@ -1,7 +1,7 @@
 """Routes API pour les familles"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
 import secrets
 from sqlalchemy.orm import joinedload
 
@@ -23,7 +23,7 @@ router = APIRouter(
     tags=["Familles"]
 )
 
-@router.get("/search", response_model=None)
+@router.get("/search", response_model=List[FamilleResponse])
 def rechercher_familles_publiques(
     query: str = "",
     skip: int = 0,
@@ -56,13 +56,13 @@ def rechercher_familles_publiques(
     return familles
 
 
-@router.post("/{famille_id}/demander-adhesion", response_model=None,status_code=status.HTTP_201_CREATED)
+@router.post("/{famille_id}/demander-adhesion", status_code=status.HTTP_201_CREATED)
 def demander_adhesion(
     famille_id: int,
     demande: DemandeAdhesionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-):
+) -> Dict[str, str]:
     """Demander à rejoindre une famille publique."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
@@ -115,7 +115,7 @@ def demander_adhesion(
     return {"message": "Demande envoyée au créateur de la famille"}
 
 
-@router.get("/{famille_id}/demandes", response_model=None)
+@router.get("/{famille_id}/demandes", response_model=List[Dict[str, Any]])
 def lister_demandes_adhesion(
     famille_id: int,
     db: Session = Depends(get_db),
@@ -158,7 +158,7 @@ def accepter_demande(
     demande_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-):
+) -> Dict[str, str]:
     """
     Accepter une demande d'adhésion.
     """
@@ -183,12 +183,12 @@ def accepter_demande(
     return {"message": "Demande acceptée"}
 
 
-@router.delete("/demandes/{demande_id}",response_model=None)
+@router.delete("/demandes/{demande_id}")
 def refuser_demande(
     demande_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-):
+) -> Dict[str, str]:
     """
     Refuser une demande d'adhésion.
     """
@@ -233,7 +233,7 @@ def creer_famille(
     return db_famille
 
 
-@router.get("/", response_model=None)
+@router.get("/", response_model=List[FamilleResponse])
 def lister_mes_familles(
     skip: int = 0,
     limit: int = 100,
@@ -312,7 +312,7 @@ def modifier_famille(
     return db_famille
 
 
-@router.delete("/{famille_id}", response_model=None,status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{famille_id}", status_code=status.HTTP_204_NO_CONTENT)
 def supprimer_famille(
     famille_id: int,
     db: Session = Depends(get_db),
@@ -338,17 +338,15 @@ def supprimer_famille(
     
     db.delete(db_famille)
     db.commit()
-    
-    return None
 
 
-@router.post("/{famille_id}/membres/{user_id}", response_model=None,status_code=status.HTTP_200_OK)
+@router.post("/{famille_id}/membres/{user_id}", status_code=status.HTTP_200_OK)
 def ajouter_membre(
     famille_id: int,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-):
+) -> Dict[str, str]:
     """
     Ajouter un membre à la famille (seulement le créateur).
     """
@@ -389,13 +387,13 @@ def ajouter_membre(
     return {"message": f"Utilisateur {user.username} ajouté à la famille"}
 
 
-@router.delete("/{famille_id}/membres/{user_id}", response_model=None,status_code=status.HTTP_200_OK)
+@router.delete("/{famille_id}/membres/{user_id}", status_code=status.HTTP_200_OK)
 def retirer_membre(
     famille_id: int,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-):
+) -> Dict[str, str]:
     """
     Retirer un membre de la famille.
     Le créateur peut retirer n'importe qui.
@@ -450,17 +448,13 @@ def retirer_membre(
 
 # ========== ROUTES D'INVITATION ==========
 
-from app.core.email import send_invitation_email
-
-from app.core.email import send_invitation_email
-
-@router.post("/{famille_id}/invite",response_model=None, status_code=status.HTTP_201_CREATED)
+@router.post("/{famille_id}/invite", status_code=status.HTTP_201_CREATED)
 def inviter_membre(
     famille_id: int,
     invitation_data: InvitationCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-):
+) -> Dict[str, Any]:
     """Inviter quelqu'un à rejoindre une famille par email."""
     import secrets
     
@@ -528,7 +522,7 @@ def inviter_membre(
     }
 
 
-@router.get("/invitations/pending", response_model=None)
+@router.get("/invitations/pending", response_model=List[Dict[str, Any]])
 def mes_invitations_en_attente(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -559,12 +553,12 @@ def mes_invitations_en_attente(
     return result
 
 
-@router.post("/invitations/{token}/accept",response_model=None)
+@router.post("/invitations/{token}/accept")
 def accepter_invitation(
     token: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-):
+) -> Dict[str, str]:
     """
     Accepter une invitation.
     """
@@ -605,7 +599,7 @@ def accepter_invitation(
     return {"message": f"Vous avez rejoint la famille {famille.nom}"}
 
 
-@router.get("/{famille_id}/invitations", response_model=None)
+@router.get("/{famille_id}/invitations", response_model=List[InvitationResponse])
 def lister_invitations_famille(
     famille_id: int,
     db: Session = Depends(get_db),
