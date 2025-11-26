@@ -33,11 +33,11 @@ def rechercher_familles_publiques(
 ):
     """Rechercher des familles publiques."""
     from sqlalchemy import or_, func
+    from sqlalchemy.orm import joinedload 
     
-    # Récupérer toutes les familles publiques
-    base_query = db.query(Famille).filter(Famille.is_public == True)
+
+    base_query = db.query(Famille).options(joinedload(Famille.membres)).filter(Famille.is_public == True)
     
-    # Si une recherche est fournie
     if query and query.strip():
         query_lower = query.strip().lower()
         base_query = base_query.filter(
@@ -48,11 +48,7 @@ def rechercher_familles_publiques(
         )
     
     familles = base_query.offset(skip).limit(limit).all()
-    
-    # Forcer le chargement des membres
-    for famille in familles:
-        _ = len(famille.membres)  
-    
+
     return familles
 
 
