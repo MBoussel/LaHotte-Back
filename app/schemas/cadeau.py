@@ -32,7 +32,6 @@ class CadeauResponse(CadeauBase):
     owner_id: int
     is_purchased: bool
     purchased_by_id: Optional[int] = None
-    famille_ids: List[int] = []
     
     class Config:
         from_attributes = True
@@ -40,6 +39,6 @@ class CadeauResponse(CadeauBase):
 
 class CadeauWithVisibility(CadeauResponse):
     """Schéma avec infos de visibilité des contributions"""
-    can_see_contributions: bool  # True si l'utilisateur peut voir les contribs
+    can_see_contributions: bool
     total_contributions: Optional[float] = None
     nb_contributions: Optional[int] = None

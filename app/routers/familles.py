@@ -34,10 +34,8 @@ def rechercher_familles_publiques(
     """Rechercher des familles publiques."""
     from sqlalchemy import or_, func
     
-    # Récupérer toutes les familles publiques
     base_query = db.query(Famille).filter(Famille.is_public == True)
     
-    # Si une recherche est fournie
     if query and query.strip():
         query_lower = query.strip().lower()
         base_query = base_query.filter(
@@ -49,7 +47,6 @@ def rechercher_familles_publiques(
     
     familles = base_query.offset(skip).limit(limit).all()
     
-    # Forcer le chargement des membres
     for famille in familles:
         _ = len(famille.membres)  
     
@@ -62,7 +59,7 @@ def demander_adhesion(
     demande: DemandeAdhesionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-) -> Dict[str, str]:
+):
     """Demander à rejoindre une famille publique."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
@@ -83,7 +80,6 @@ def demander_adhesion(
     if existing:
         raise HTTPException(status_code=400, detail="Demande déjà envoyée")
     
-    # Créer la demande
     db_demande = DemandeAdhesion(
         famille_id=famille_id,
         user_id=current_user.id,
@@ -93,10 +89,8 @@ def demander_adhesion(
     db.add(db_demande)
     db.commit()
     
-    # Récupérer le créateur de la famille
     createur = db.query(User).filter(User.id == famille.creator_id).first()
     
-    # Envoyer l'email au créateur
     if createur:
         try:
             send_demande_adhesion_email(
@@ -121,9 +115,7 @@ def lister_demandes_adhesion(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Lister les demandes d'adhésion (créateur seulement).
-    """
+    """Lister les demandes d'adhésion (créateur seulement)."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
     if not famille:
@@ -136,7 +128,6 @@ def lister_demandes_adhesion(
         DemandeAdhesion.famille_id == famille_id
     ).all()
     
-    # Ajouter les infos utilisateur
     result = []
     for demande in demandes:
         user = db.query(User).filter(User.id == demande.user_id).first()
@@ -158,10 +149,8 @@ def accepter_demande(
     demande_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-) -> Dict[str, str]:
-    """
-    Accepter une demande d'adhésion.
-    """
+):
+    """Accepter une demande d'adhésion."""
     demande = db.query(DemandeAdhesion).filter(DemandeAdhesion.id == demande_id).first()
     
     if not demande:
@@ -171,12 +160,10 @@ def accepter_demande(
     if not famille or famille.creator_id != current_user.id:
         raise HTTPException(status_code=403, detail="Seul le créateur peut accepter")
     
-    # Ajouter l'utilisateur à la famille
     user = db.query(User).filter(User.id == demande.user_id).first()
     if user and user not in famille.membres:
         famille.membres.append(user)
     
-    # Supprimer la demande
     db.delete(demande)
     db.commit()
     
@@ -188,10 +175,8 @@ def refuser_demande(
     demande_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-) -> Dict[str, str]:
-    """
-    Refuser une demande d'adhésion.
-    """
+):
+    """Refuser une demande d'adhésion."""
     demande = db.query(DemandeAdhesion).filter(DemandeAdhesion.id == demande_id).first()
     
     if not demande:
@@ -206,16 +191,14 @@ def refuser_demande(
     
     return {"message": "Demande refusée"}
 
+
 @router.post("/", response_model=FamilleResponse, status_code=status.HTTP_201_CREATED)
 def creer_famille(
     famille: FamilleCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Créer une nouvelle famille.
-    Le créateur est automatiquement ajouté comme membre.
-    """
+    """Créer une nouvelle famille."""
     db_famille = Famille(
         nom=famille.nom,
         description=famille.description,
@@ -223,7 +206,6 @@ def creer_famille(
         creator_id=current_user.id
     )
     
-    # Ajouter le créateur comme membre
     db_famille.membres.append(current_user)
     
     db.add(db_famille)
@@ -240,12 +222,8 @@ def lister_mes_familles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Récupérer toutes MES familles (celles dont je suis membre).
-    """
-    # Recharger l'utilisateur pour avoir les relations
+    """Récupérer toutes MES familles."""
     db.refresh(current_user)
-    
     return current_user.familles[skip:skip + limit]
 
 
@@ -255,10 +233,7 @@ def obtenir_famille(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Récupérer une famille spécifique.
-    Accessible seulement si je suis membre de cette famille.
-    """
+    """Récupérer une famille spécifique."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
     if not famille:
@@ -267,7 +242,6 @@ def obtenir_famille(
             detail=f"Famille avec l'ID {famille_id} non trouvée"
         )
     
-    # Vérifier que je suis membre de cette famille
     if current_user not in famille.membres:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -284,8 +258,7 @@ def modifier_famille(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Modifier une famille (seulement le créateur peut le faire)."""
-
+    """Modifier une famille."""
     db_famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
     if not db_famille:
@@ -294,14 +267,12 @@ def modifier_famille(
             detail=f"Famille avec l'ID {famille_id} non trouvée"
         )
     
-    # Vérifier que je suis le créateur
     if db_famille.creator_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seul le créateur peut modifier la famille"
         )
     
-    # Mettre à jour
     update_data = famille_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_famille, field, value)
@@ -318,9 +289,7 @@ def supprimer_famille(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Supprimer une famille (seulement le créateur peut le faire).
-    """
+    """Supprimer une famille."""
     db_famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
     if not db_famille:
@@ -329,7 +298,6 @@ def supprimer_famille(
             detail=f"Famille avec l'ID {famille_id} non trouvée"
         )
     
-    # Vérifier que je suis le créateur
     if db_famille.creator_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -346,10 +314,8 @@ def ajouter_membre(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-) -> Dict[str, str]:
-    """
-    Ajouter un membre à la famille (seulement le créateur).
-    """
+):
+    """Ajouter un membre à la famille."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
     if not famille:
@@ -358,14 +324,12 @@ def ajouter_membre(
             detail="Famille non trouvée"
         )
     
-    # Vérifier que je suis le créateur
     if famille.creator_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seul le créateur peut ajouter des membres"
         )
     
-    # Trouver l'utilisateur à ajouter
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
@@ -373,14 +337,12 @@ def ajouter_membre(
             detail="Utilisateur non trouvé"
         )
     
-    # Vérifier qu'il n'est pas déjà membre
     if user in famille.membres:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cet utilisateur est déjà membre de la famille"
         )
     
-    # Ajouter le membre
     famille.membres.append(user)
     db.commit()
     
@@ -393,12 +355,8 @@ def retirer_membre(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-) -> Dict[str, str]:
-    """
-    Retirer un membre de la famille.
-    Le créateur peut retirer n'importe qui.
-    Un membre peut se retirer lui-même.
-    """
+):
+    """Retirer un membre de la famille."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
     if not famille:
@@ -407,7 +365,6 @@ def retirer_membre(
             detail="Famille non trouvée"
         )
     
-    # Vérifier les permissions
     is_creator = famille.creator_id == current_user.id
     is_self = user_id == current_user.id
     
@@ -417,14 +374,12 @@ def retirer_membre(
             detail="Vous ne pouvez retirer que vous-même, sauf si vous êtes le créateur"
         )
     
-    # Ne pas permettre au créateur de se retirer
     if user_id == famille.creator_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Le créateur ne peut pas quitter la famille"
         )
     
-    # Trouver l'utilisateur
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
@@ -432,21 +387,17 @@ def retirer_membre(
             detail="Utilisateur non trouvé"
         )
     
-    # Vérifier qu'il est membre
     if user not in famille.membres:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cet utilisateur n'est pas membre de la famille"
         )
     
-    # Retirer le membre
     famille.membres.remove(user)
     db.commit()
     
     return {"message": f"Utilisateur {user.username} retiré de la famille"}
 
-
-# ========== ROUTES D'INVITATION ==========
 
 @router.post("/{famille_id}/invite", status_code=status.HTTP_201_CREATED)
 def inviter_membre(
@@ -454,23 +405,18 @@ def inviter_membre(
     invitation_data: InvitationCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-) -> Dict[str, Any]:
+):
     """Inviter quelqu'un à rejoindre une famille par email."""
-    import secrets
-    
-    # Vérifier que la famille existe
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     if not famille:
         raise HTTPException(status_code=404, detail="Famille non trouvée")
     
-    # Vérifier que je suis le créateur
     if famille.creator_id != current_user.id:
         raise HTTPException(
             status_code=403,
             detail="Seul le créateur peut inviter des membres"
         )
     
-    # Vérifier si l'utilisateur existe déjà et est déjà membre
     existing_user = db.query(User).filter(User.email == invitation_data.email).first()
     if existing_user and existing_user in famille.membres:
         raise HTTPException(
@@ -478,7 +424,6 @@ def inviter_membre(
             detail="Cet utilisateur est déjà membre de la famille"
         )
     
-    # Vérifier si une invitation existe déjà
     existing_invitation = db.query(Invitation).filter(
         Invitation.famille_id == famille_id,
         Invitation.email == invitation_data.email,
@@ -491,7 +436,6 @@ def inviter_membre(
             detail="Une invitation a déjà été envoyée à cette adresse"
         )
     
-    # Créer l'invitation
     token = secrets.token_urlsafe(32)
     db_invitation = Invitation(
         famille_id=famille_id,
@@ -503,7 +447,6 @@ def inviter_membre(
     db.commit()
     db.refresh(db_invitation)
     
-    # Envoyer l'email
     try:
         send_invitation_email(
             email=invitation_data.email,
@@ -514,7 +457,6 @@ def inviter_membre(
         print(f"📧 Invitation envoyée à {invitation_data.email}")
     except Exception as e:
         print(f"⚠️  Erreur envoi email (invitation créée quand même): {e}")
-        # On ne bloque pas la création de l'invitation si l'email échoue
     
     return {
         "message": f"Invitation envoyée à {invitation_data.email}",
@@ -527,15 +469,12 @@ def mes_invitations_en_attente(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Récupérer mes invitations en attente avec le nom de la famille.
-    """
+    """Récupérer mes invitations en attente."""
     invitations = db.query(Invitation).filter(
         Invitation.email == current_user.email,
         Invitation.accepted == False
     ).all()
     
-    # Ajouter le nom de la famille à chaque invitation
     result = []
     for invitation in invitations:
         famille = db.query(Famille).filter(Famille.id == invitation.famille_id).first()
@@ -558,10 +497,8 @@ def accepter_invitation(
     token: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
-) -> Dict[str, str]:
-    """
-    Accepter une invitation.
-    """
+):
+    """Accepter une invitation."""
     invitation = db.query(Invitation).filter(Invitation.token == token).first()
     
     if not invitation:
@@ -582,7 +519,6 @@ def accepter_invitation(
             detail="Invitation déjà acceptée"
         )
     
-    # Ajouter à la famille
     famille = db.query(Famille).filter(Famille.id == invitation.famille_id).first()
     if not famille:
         raise HTTPException(
@@ -605,7 +541,7 @@ def lister_invitations_famille(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Lister toutes les invitations d'une famille (créateur seulement)."""
+    """Lister toutes les invitations d'une famille."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     
     if not famille:

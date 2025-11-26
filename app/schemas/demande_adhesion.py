@@ -1,6 +1,7 @@
 """Schémas Pydantic pour les demandes d'adhésion"""
 from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
 
 
 class DemandeAdhesionCreate(BaseModel):
@@ -15,8 +16,8 @@ class DemandeAdhesionResponse(BaseModel):
     user_id: int
     message: str
     created_at: datetime
-    user_username: str | None = None
-    user_email: str | None = None
+    user_username: Optional[str] = None
+    user_email: Optional[str] = None
     
     class Config:
         from_attributes = True
