@@ -16,15 +16,13 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=CadeauResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 def creer_cadeau(
     cadeau: CadeauCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Créer un nouveau cadeau et l'ajouter à plusieurs familles.
-    """
+    """Créer un nouveau cadeau et l'ajouter à plusieurs familles."""
     # Vérifier que toutes les familles existent et que je suis membre
     familles = []
     for famille_id in cadeau.famille_ids:
@@ -59,10 +57,18 @@ def creer_cadeau(
     db.refresh(db_cadeau)
     
     # Retourner avec les IDs des familles
-    response = CadeauResponse.model_validate(db_cadeau)
-    response.famille_ids = [f.id for f in db_cadeau.familles]
-    
-    return response
+    return {
+        "id": db_cadeau.id,
+        "titre": db_cadeau.titre,
+        "prix": db_cadeau.prix,
+        "description": db_cadeau.description,
+        "photo_url": db_cadeau.photo_url,
+        "lien_achat": db_cadeau.lien_achat,
+        "owner_id": db_cadeau.owner_id,
+        "is_purchased": db_cadeau.is_purchased,
+        "purchased_by_id": db_cadeau.purchased_by_id,
+        "famille_ids": [f.id for f in db_cadeau.familles]
+    }
 
 
 @router.get("/", response_model=List[CadeauResponse])
@@ -71,19 +77,9 @@ def lister_cadeaux(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    """
-    Récupérer la liste de tous les cadeaux.
-    """
+    """Récupérer la liste de tous les cadeaux."""
     cadeaux = db.query(Cadeau).offset(skip).limit(limit).all()
-    
-    # Ajouter les famille_ids à chaque cadeau
-    result = []
-    for cadeau in cadeaux:
-        response = CadeauResponse.model_validate(cadeau)
-        response.famille_ids = [f.id for f in cadeau.familles]
-        result.append(response)
-    
-    return result
+    return cadeaux
 
 
 @router.get("/me", response_model=List[CadeauResponse])
@@ -93,21 +89,11 @@ def lister_mes_cadeaux(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Récupérer MES cadeaux (ceux que j'ai créés).
-    """
+    """Récupérer MES cadeaux (ceux que j'ai créés)."""
     cadeaux = db.query(Cadeau).filter(
         Cadeau.owner_id == current_user.id
     ).offset(skip).limit(limit).all()
-    
-    # Ajouter les famille_ids
-    result = []
-    for cadeau in cadeaux:
-        response = CadeauResponse.model_validate(cadeau)
-        response.famille_ids = [f.id for f in cadeau.familles]
-        result.append(response)
-    
-    return result
+    return cadeaux
 
 
 @router.get("/{cadeau_id}", response_model=CadeauResponse)
@@ -115,9 +101,7 @@ def obtenir_cadeau(
     cadeau_id: int,
     db: Session = Depends(get_db)
 ):
-    """
-    Récupérer un cadeau spécifique par son ID.
-    """
+    """Récupérer un cadeau spécifique par son ID."""
     cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
     
     if not cadeau:
@@ -126,10 +110,7 @@ def obtenir_cadeau(
             detail=f"Cadeau avec l'ID {cadeau_id} non trouvé"
         )
     
-    response = CadeauResponse.model_validate(cadeau)
-    response.famille_ids = [f.id for f in cadeau.familles]
-    
-    return response
+    return cadeau
 
 
 @router.put("/{cadeau_id}", response_model=CadeauResponse)
@@ -139,9 +120,7 @@ def modifier_cadeau(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Modifier un cadeau existant.
-    """
+    """Modifier un cadeau existant."""
     db_cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
     
     if not db_cadeau:
@@ -165,10 +144,7 @@ def modifier_cadeau(
     db.commit()
     db.refresh(db_cadeau)
     
-    response = CadeauResponse.model_validate(db_cadeau)
-    response.famille_ids = [f.id for f in db_cadeau.familles]
-    
-    return response
+    return db_cadeau
 
 
 @router.delete("/{cadeau_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -177,9 +153,7 @@ def supprimer_cadeau(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Supprimer un cadeau.
-    """
+    """Supprimer un cadeau."""
     db_cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
     
     if not db_cadeau:
@@ -205,10 +179,7 @@ def marquer_achete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Marquer un cadeau comme acheté.
-    Seuls les membres de la famille (sauf le propriétaire) peuvent le faire.
-    """
+    """Marquer un cadeau comme acheté."""
     cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
     
     if not cadeau:
@@ -239,10 +210,7 @@ def marquer_achete(
     db.commit()
     db.refresh(cadeau)
     
-    response = CadeauResponse.model_validate(cadeau)
-    response.famille_ids = [f.id for f in cadeau.familles]
-    
-    return response
+    return cadeau
 
 
 @router.post("/{cadeau_id}/unmark-purchased", response_model=CadeauResponse)
@@ -251,10 +219,7 @@ def demarquer_achete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Annuler le marquage "acheté" d'un cadeau.
-    Seul celui qui l'a marqué comme acheté peut le faire.
-    """
+    """Annuler le marquage "acheté" d'un cadeau."""
     cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
     
     if not cadeau:
@@ -277,7 +242,4 @@ def demarquer_achete(
     db.commit()
     db.refresh(cadeau)
     
-    response = CadeauResponse.model_validate(cadeau)
-    response.famille_ids = [f.id for f in cadeau.familles]
-    
-    return response
+    return cadeau
