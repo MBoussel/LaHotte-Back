@@ -97,8 +97,8 @@ def login(
         key="access_token",
         value=f"Bearer {access_token}",
         httponly=True,  # Protection XSS
-        secure=False,  # True en production avec HTTPS
-        samesite="lax",  # Protection CSRF
+        secure=True,  # HTTPS en production
+        samesite="none",  # Protection CSRF
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
     
