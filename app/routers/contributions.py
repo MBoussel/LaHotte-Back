@@ -23,33 +23,18 @@ def contribuer_cadeau(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Contribuer à un cadeau.
-    """
-    # Vérifier que le cadeau existe
+    """Contribuer à un cadeau."""
     cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
     if not cadeau:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cadeau non trouvé"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cadeau non trouvé")
     
-    # Vérifier que je ne contribue pas à mon propre cadeau
     if cadeau.owner_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Vous ne pouvez pas contribuer à votre propre cadeau"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vous ne pouvez pas contribuer à votre propre cadeau")
     
-    # Vérifier que je suis membre d'au moins une famille où se trouve le cadeau
     is_member = any(current_user in famille.membres for famille in cadeau.familles)
     if not is_member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous devez être membre de la famille"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous devez être membre de la famille")
     
-    # Créer la contribution
     db_contribution = Contribution(
         cadeau_id=cadeau_id,
         user_id=current_user.id,
@@ -71,37 +56,20 @@ def lister_contributions_cadeau(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Lister toutes les contributions d'un cadeau.
-    Le propriétaire du cadeau NE PEUT PAS voir les contributions.
-    """
-    # Vérifier que le cadeau existe
+    """Lister toutes les contributions d'un cadeau."""
     cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
     if not cadeau:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cadeau non trouvé"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cadeau non trouvé")
     
-    # Vérifier que je ne suis PAS le propriétaire
     if cadeau.owner_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous ne pouvez pas voir les contributions de votre propre cadeau"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous ne pouvez pas voir les contributions de votre propre cadeau")
     
-    # Vérifier que je suis membre d'au moins une famille
     is_member = any(current_user in famille.membres for famille in cadeau.familles)
     if not is_member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous devez être membre de la famille"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous devez être membre de la famille")
     
-    # Récupérer les contributions
     contributions = db.query(Contribution).filter(Contribution.cadeau_id == cadeau_id).all()
     
-    # Formater les contributions
     result = []
     for contrib in contributions:
         user = db.query(User).filter(User.id == contrib.user_id).first()
@@ -117,14 +85,34 @@ def lister_contributions_cadeau(
     return result
 
 
+@router.get("/statistics")
+def statistiques_contributions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récupérer les statistiques de mes contributions."""
+    from sqlalchemy import func
+    
+    total = db.query(func.sum(Contribution.montant)).filter(
+        Contribution.user_id == current_user.id
+    ).scalar() or 0.0
+    
+    count = db.query(func.count(Contribution.id)).filter(
+        Contribution.user_id == current_user.id
+    ).scalar() or 0
+    
+    return {
+        "total_contribue": float(total),
+        "nombre_contributions": count
+    }
+
+
 @router.get("/mes-contributions", response_model=List[ContributionResponse])
 def mes_contributions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Lister toutes mes contributions.
-    """
+    """Lister toutes mes contributions."""
     contributions = db.query(Contribution).filter(
         Contribution.user_id == current_user.id
     ).all()
@@ -138,9 +126,29 @@ def supprimer_contribution(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """
-    Supprimer une de mes contributions.
-    """
+    """Supprimer une de mes contributions."""
+    contribution = db.query(Contribution).filter(Contribution.id == contribution_id).first()
+    
+    if not contribution:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contribution non trouvée")
+    
+    if contribution.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous ne pouvez supprimer que vos propres contributions")
+    
+    db.delete(contribution)
+    db.commit()
+
+
+@router.put("/{contribution_id}", response_model=ContributionResponse)
+def modifier_contribution(
+    contribution_id: int,
+    montant: float = None,
+    message: str = None,
+    is_anonymous: bool = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Modifier une de mes contributions."""
     contribution = db.query(Contribution).filter(Contribution.id == contribution_id).first()
     
     if not contribution:
@@ -149,12 +157,21 @@ def supprimer_contribution(
             detail="Contribution non trouvée"
         )
     
-    # Vérifier que c'est ma contribution
     if contribution.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous ne pouvez supprimer que vos propres contributions"
+            detail="Vous ne pouvez modifier que vos propres contributions"
         )
     
-    db.delete(contribution)
+    # Mettre à jour les champs
+    if montant is not None:
+        contribution.montant = montant
+    if message is not None:
+        contribution.message = message
+    if is_anonymous is not None:
+        contribution.is_anonymous = is_anonymous
+    
     db.commit()
+    db.refresh(contribution)
+    
+    return contribution
