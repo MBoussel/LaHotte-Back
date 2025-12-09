@@ -117,7 +117,7 @@ def lister_contributions_cadeau(
     return result
 
 
-@router.get("/stats")
+@router.get("/statistics")
 def statistiques_contributions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
