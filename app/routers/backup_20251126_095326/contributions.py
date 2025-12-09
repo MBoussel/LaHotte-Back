@@ -131,7 +131,26 @@ def mes_contributions(
     
     return contributions
 
-
+@router.get("/stats")
+def statistiques_contributions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récupérer les statistiques de mes contributions."""
+    from sqlalchemy import func
+    
+    total = db.query(func.sum(Contribution.montant)).filter(
+        Contribution.user_id == current_user.id
+    ).scalar() or 0.0
+    
+    count = db.query(func.count(Contribution.id)).filter(
+        Contribution.user_id == current_user.id
+    ).scalar() or 0
+    
+    return {
+        "total_contribue": float(total),
+        "nombre_contributions": count
+    }
 @router.delete("/{contribution_id}", status_code=status.HTTP_204_NO_CONTENT)
 def supprimer_contribution(
     contribution_id: int,
