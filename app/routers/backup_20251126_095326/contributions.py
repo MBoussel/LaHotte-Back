@@ -117,20 +117,6 @@ def lister_contributions_cadeau(
     return result
 
 
-@router.get("/mes-contributions", response_model=List[ContributionResponse])
-def mes_contributions(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Lister toutes mes contributions.
-    """
-    contributions = db.query(Contribution).filter(
-        Contribution.user_id == current_user.id
-    ).all()
-    
-    return contributions
-
 @router.get("/stats")
 def statistiques_contributions(
     db: Session = Depends(get_db),
@@ -151,6 +137,23 @@ def statistiques_contributions(
         "total_contribue": float(total),
         "nombre_contributions": count
     }
+
+
+@router.get("/mes-contributions", response_model=List[ContributionResponse])
+def mes_contributions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Lister toutes mes contributions.
+    """
+    contributions = db.query(Contribution).filter(
+        Contribution.user_id == current_user.id
+    ).all()
+    
+    return contributions
+
+
 @router.delete("/{contribution_id}", status_code=status.HTTP_204_NO_CONTENT)
 def supprimer_contribution(
     contribution_id: int,
