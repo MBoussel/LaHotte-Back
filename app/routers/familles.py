@@ -121,7 +121,7 @@ def lister_demandes_adhesion(
     if not famille:
         raise HTTPException(status_code=404, detail="Famille non trouvée")
     
-    if famille.creator_id != current_user.id:
+    if famille.creator_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Seul le créateur peut voir les demandes")
     
     demandes = db.query(DemandeAdhesion).filter(
@@ -334,7 +334,7 @@ def ajouter_membre(
             detail="Famille non trouvée"
         )
     
-    if famille.creator_id != current_user.id:
+    if famille.creator_id != current_user.id and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seul le créateur peut ajouter des membres"
@@ -421,7 +421,7 @@ def inviter_membre(
     if not famille:
         raise HTTPException(status_code=404, detail="Famille non trouvée")
     
-    if famille.creator_id != current_user.id:
+    if famille.creator_id != current_user.id and not current_user.is_admin:
         raise HTTPException(
             status_code=403,
             detail="Seul le créateur peut inviter des membres"
@@ -557,7 +557,7 @@ def lister_invitations_famille(
     if not famille:
         raise HTTPException(status_code=404, detail="Famille non trouvée")
     
-    if famille.creator_id != current_user.id:
+    if famille.creator_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Seul le créateur peut voir les invitations")
     
     invitations = db.query(Invitation).filter(
@@ -565,3 +565,106 @@ def lister_invitations_famille(
     ).all()
     
     return invitations
+
+@router.get("/{famille_id}/contributions-recap")
+def recap_contributions_famille(
+    famille_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Récapitulatif des contributions d'une famille (réservé au créateur)."""
+    from sqlalchemy import func
+    from app.models.contribution import Contribution
+    from app.models.cadeau import Cadeau
+    
+    # Vérifier que la famille existe
+    famille = db.query(Famille).filter(Famille.id == famille_id).first()
+    if not famille:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Famille non trouvée"
+        )
+    
+    # Vérifier que je suis le créateur de la famille
+    if famille.creator_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seul le créateur de la famille peut voir ce récapitulatif"
+        )
+    
+    # Récupérer tous les cadeaux de la famille
+    cadeaux_ids = [c.id for c in famille.cadeaux]
+    
+    # Récupérer toutes les contributions pour ces cadeaux
+    contributions = db.query(Contribution).filter(
+        Contribution.cadeau_id.in_(cadeaux_ids)
+    ).all()
+    
+    # Statistiques globales
+    total_contribue = db.query(func.sum(Contribution.montant)).filter(
+        Contribution.cadeau_id.in_(cadeaux_ids)
+    ).scalar() or 0.0
+    
+    nb_contributions = len(contributions)
+    
+    # Contributions par membre
+    contributions_par_membre = {}
+    for contrib in contributions:
+        user = db.query(User).filter(User.id == contrib.user_id).first()
+        if user:
+            if user.id not in contributions_par_membre:
+                contributions_par_membre[user.id] = {
+                    "user_id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "total_contribue": 0,
+                    "nb_contributions": 0,
+                    "contributions": []
+                }
+            
+            cadeau = db.query(Cadeau).filter(Cadeau.id == contrib.cadeau_id).first()
+            
+            contributions_par_membre[user.id]["total_contribue"] += contrib.montant
+            contributions_par_membre[user.id]["nb_contributions"] += 1
+            contributions_par_membre[user.id]["contributions"].append({
+                "id": contrib.id,
+                "montant": contrib.montant,
+                "message": contrib.message,
+                "is_anonymous": contrib.is_anonymous,
+                "created_at": contrib.created_at.isoformat(),
+                "cadeau_titre": cadeau.titre if cadeau else "Cadeau supprimé",
+                "cadeau_owner": cadeau.owner_id if cadeau else None
+            })
+    
+    # Contributions par cadeau
+    contributions_par_cadeau = {}
+    for cadeau in famille.cadeaux:
+        cadeau_contribs = [c for c in contributions if c.cadeau_id == cadeau.id]
+        total_cadeau = sum(c.montant for c in cadeau_contribs)
+        
+        owner = db.query(User).filter(User.id == cadeau.owner_id).first()
+        
+        contributions_par_cadeau[cadeau.id] = {
+            "cadeau_id": cadeau.id,
+            "cadeau_titre": cadeau.titre,
+            "cadeau_prix": cadeau.prix,
+            "owner": owner.username if owner else "Inconnu",
+            "total_contribue": total_cadeau,
+            "reste": cadeau.prix - total_cadeau,
+            "pourcentage": (total_cadeau / cadeau.prix * 100) if cadeau.prix > 0 else 0,
+            "is_purchased": cadeau.is_purchased,
+            "nb_contributions": len(cadeau_contribs)
+        }
+    
+    return {
+        "famille_id": famille.id,
+        "famille_nom": famille.nom,
+        "stats_globales": {
+            "total_contribue": float(total_contribue),
+            "nb_contributions": nb_contributions,
+            "nb_cadeaux": len(famille.cadeaux),
+            "nb_contributeurs": len(contributions_par_membre)
+        },
+        "contributions_par_membre": list(contributions_par_membre.values()),
+        "contributions_par_cadeau": list(contributions_par_cadeau.values())
+    }

@@ -27,9 +27,11 @@ class UserResponse(UserBase):
     """Schéma pour la réponse (sans le mot de passe !)"""
     id: int
     is_active: bool
+    is_admin: bool = False
     created_at: datetime
     
     class Config:
+        from_attributes = True
         from_attributes = True
 
 
@@ -42,3 +44,4 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """Données contenues dans le token"""
     email: Optional[str] = None
+# Ajoute is_admin à UserResponse (trouve la classe et ajoute le champ)
