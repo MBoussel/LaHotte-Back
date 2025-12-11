@@ -123,3 +123,15 @@ def logout(response: Response) -> Dict[str, str]:
 def get_current_user_info(current_user: User = Depends(get_current_active_user)):
     """Obtenir les infos de l'utilisateur connecté"""
     return current_user
+
+@router.put("/me/avatar")
+def update_avatar(
+    avatar_url: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Mettre à jour l'URL de l'avatar"""
+    current_user.avatar_url = avatar_url
+    db.commit()
+    db.refresh(current_user)
+    return {"message": "Avatar mis à jour", "avatar_url": avatar_url}

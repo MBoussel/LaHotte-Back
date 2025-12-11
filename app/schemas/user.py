@@ -21,6 +21,7 @@ class UserUpdate(BaseModel):
     """Schéma pour modifier un utilisateur"""
     first_name: Optional[str] = Field(None, max_length=100)
     last_name: Optional[str] = Field(None, max_length=100)
+    avatar_url: Optional[str] = Field(None, max_length=500)
 
 
 class UserResponse(UserBase):
@@ -28,6 +29,7 @@ class UserResponse(UserBase):
     id: int
     is_active: bool
     is_admin: bool = False
+    avatar_url: Optional[str] = None
     created_at: datetime
     
     class Config:
