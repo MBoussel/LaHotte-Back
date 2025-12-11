@@ -1,6 +1,6 @@
 """Modèle SQLAlchemy 2.0 pour les cadeaux"""
 from typing import Optional, TYPE_CHECKING, List
-from sqlalchemy import String, Float, ForeignKey, Text, Boolean, Table, Column, Integer
+from sqlalchemy import String, Float, Numeric, ForeignKey, Text, Boolean, Table, Column, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -38,7 +38,7 @@ class Cadeau(Base):
     # Colonnes
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     titre: Mapped[str] = mapped_column(String(200))
-    prix: Mapped[float] = mapped_column(Float)
+    prix: Mapped[float] = mapped_column(Numeric(10, 2))
     description: Mapped[Optional[str]] = mapped_column(Text, default="")
     photo_url: Mapped[Optional[str]] = mapped_column(Text, default="")
     lien_achat: Mapped[Optional[str]] = mapped_column(Text, default="")

@@ -1,7 +1,7 @@
 """Modèle SQLAlchemy 2.0 pour les contributions"""
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Float, ForeignKey, Boolean, func, Text
+from sqlalchemy import String, Numeric, ForeignKey, Boolean, func, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -29,7 +29,7 @@ class Contribution(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     cadeau_id: Mapped[int] = mapped_column(ForeignKey("cadeaux.id", ondelete="CASCADE"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    montant: Mapped[float] = mapped_column(Float)
+    montant: Mapped[float] = mapped_column(Numeric(10, 2))
     message: Mapped[Optional[str]] = mapped_column(Text, default="")
     is_anonymous: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())

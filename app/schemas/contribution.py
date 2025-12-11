@@ -6,7 +6,7 @@ from datetime import datetime
 
 class ContributionCreate(BaseModel):
     """Schéma pour créer une contribution"""
-    montant: float = Field(..., gt=0, description="Montant de la contribution")
+    montant: float = Field(..., ge=0.01, description="Montant de la contribution")
     message: Optional[str] = Field("", max_length=500, description="Message optionnel")
     is_anonymous: bool = Field(False, description="Contribution anonyme")
 
@@ -32,7 +32,7 @@ class ContributionWithUser(BaseModel):
     message: str
     is_anonymous: bool
     created_at: datetime
-    contributeur: Optional[str] = None  # Nom de l'utilisateur (ou None si anonyme)
+    contributeur: Optional[str] = None
     
     class Config:
         from_attributes = True

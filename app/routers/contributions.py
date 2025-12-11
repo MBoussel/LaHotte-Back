@@ -35,6 +35,20 @@ def contribuer_cadeau(
     if not is_member:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous devez être membre de la famille")
     
+    # Vérifier que le montant ne dépasse pas le reste
+    from sqlalchemy import func
+    total_contribue = db.query(func.sum(Contribution.montant)).filter(
+        Contribution.cadeau_id == cadeau_id
+    ).scalar() or 0.0
+    
+    reste = float(cadeau.prix) - float(total_contribue)
+    
+    if contribution.montant > reste + 0.01:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Le montant ne peut pas dépasser le reste à financer ({reste:.2f} €)"
+        )
+
     db_contribution = Contribution(
         cadeau_id=cadeau_id,
         user_id=current_user.id,
