@@ -41,8 +41,6 @@ class CadeauResponse(CadeauBase):
     """Schéma pour la réponse"""
     id: int
     owner_id: int
-    is_purchased: bool
-    purchased_by_id: Optional[int] = None
     beneficiaires: List[BeneficiaireSimple] = []
     
     class Config:
