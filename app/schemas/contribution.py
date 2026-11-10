@@ -8,7 +8,6 @@ class ContributionCreate(BaseModel):
     """Schéma pour créer une contribution"""
     montant: float = Field(..., ge=0.01, description="Montant de la contribution")
     message: Optional[str] = Field("", max_length=500, description="Message optionnel")
-    is_anonymous: bool = Field(False, description="Contribution anonyme")
 
 
 class ContributionResponse(BaseModel):
@@ -18,7 +17,6 @@ class ContributionResponse(BaseModel):
     user_id: int
     montant: float
     message: str
-    is_anonymous: bool
     created_at: datetime
     
     class Config:
