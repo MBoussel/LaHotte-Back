@@ -6,10 +6,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.database import engine, Base
+from sqlalchemy import text
 from app.routers import cadeaux, auth, familles, contributions
 
 # Créer les tables dans la base de données
 Base.metadata.create_all(bind=engine)
+with engine.begin() as connection:
+    connection.execute(text('ALTER TABLE familles ADD COLUMN IF NOT EXISTS pere_noel_id INTEGER REFERENCES users(id) ON DELETE SET NULL'))
 
 # Créer l'application FastAPI
 app = FastAPI(
