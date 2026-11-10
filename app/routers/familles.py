@@ -630,7 +630,7 @@ def recap_contributions_famille(
             continue
 
         # Respecter le choix d'anonymat, même dans le récapitulatif des rôles autorisés.
-        membre_key = f"anonyme-{contrib.id}" if contrib.is_anonymous else f"user-{user.id}"
+        membre_key = "anonyme" if contrib.is_anonymous else f"user-{user.id}"
         username = "Anonyme" if contrib.is_anonymous else user.username
         user_id = None if contrib.is_anonymous else user.id
         item = membres.setdefault(membre_key, {
