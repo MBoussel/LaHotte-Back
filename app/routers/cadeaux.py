@@ -230,8 +230,6 @@ def modifier_cadeau(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
-        "is_purchased": cadeau.is_purchased,
-        "purchased_by_id": cadeau.purchased_by_id,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
     }
 
@@ -297,8 +295,6 @@ def lister_cadeaux_famille(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
-            "is_purchased": cadeau.is_purchased,
-            "purchased_by_id": cadeau.purchased_by_id,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
         })
     
@@ -327,8 +323,6 @@ def lister_cadeaux_beneficiaire(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
-            "is_purchased": cadeau.is_purchased,
-            "purchased_by_id": cadeau.purchased_by_id,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
         })
     
