@@ -87,7 +87,7 @@ def lister_contributions_cadeau(
             "message": contrib.message,
             "is_anonymous": contrib.is_anonymous,
             "created_at": contrib.created_at,
-            "contributeur": None if contrib.is_anonymous else (user.username if user else "Inconnu")
+            "contributeur": user.username if user else "Inconnu"
         })
     
     return result
