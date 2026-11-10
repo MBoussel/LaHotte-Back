@@ -404,6 +404,8 @@ def retirer_membre(
         )
     
     famille.membres.remove(user)
+    if famille.pere_noel_id == user_id:
+        famille.pere_noel_id = None
     db.commit()
     
     return {"message": f"Utilisateur {user.username} retiré de la famille"}
