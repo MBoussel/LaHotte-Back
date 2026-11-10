@@ -629,7 +629,7 @@ def recap_contributions_famille(
         if not user or not cadeau:
             continue
         item = membres.setdefault(user.id, {
-            "user_id": user.id, "username": user.username, "email": user.email,
+            "user_id": user.id, "username": user.username,
             "total_contribue": 0.0, "nb_contributions": 0, "contributions": []
         })
         item["total_contribue"] += float(contrib.montant)
