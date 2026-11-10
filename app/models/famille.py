@@ -43,10 +43,12 @@ class Famille(Base):
     description: Mapped[Optional[str]] = mapped_column(String(1000), default="")
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     creator_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    pere_noel_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
     
     # Relations
     creator: Mapped["User"] = relationship(back_populates="familles_creees", foreign_keys=[creator_id])
+    pere_noel: Mapped[Optional["User"]] = relationship(foreign_keys=[pere_noel_id])
     membres: Mapped[List["User"]] = relationship(
         secondary=famille_membres,
         back_populates="familles"
