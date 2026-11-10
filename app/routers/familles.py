@@ -237,6 +237,20 @@ def lister_mes_familles(
 
 
 
+@router.put("/{famille_id}/pere-noel/{user_id}")
+def definir_pere_noel(famille_id: int, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    """Le créateur désigne un membre comme Père Noël."""
+    famille = db.query(Famille).filter(Famille.id == famille_id).first()
+    if not famille: raise HTTPException(status_code=404, detail="Famille non trouvée")
+    if famille.creator_id != current_user.id: raise HTTPException(status_code=403, detail="Seul le créateur peut désigner le Père Noël")
+    membre = db.query(User).filter(User.id == user_id).first()
+    if not membre or membre not in famille.membres: raise HTTPException(status_code=400, detail="Le Père Noël doit être membre de la famille")
+    if user_id == famille.creator_id: raise HTTPException(status_code=400, detail="Le créateur ne peut pas être Père Noël afin de préserver la séparation des rôles")
+    famille.pere_noel_id = user_id
+    db.commit()
+    db.refresh(famille)
+    return {"famille_id": famille.id, "pere_noel_id": famille.pere_noel_id}
+
 @router.get("/{famille_id}", response_model=FamilleWithMembres)
 def obtenir_famille(
     famille_id: int,
@@ -567,104 +581,32 @@ def lister_invitations_famille(
     return invitations
 
 @router.get("/{famille_id}/contributions-recap")
-def recap_contributions_famille(
-    famille_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """Récapitulatif des contributions d'une famille (réservé au créateur)."""
-    from sqlalchemy import func
+def recap_contributions_famille(famille_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    """Détails limités au Père Noël ou au créateur selon les cadeaux."""
     from app.models.contribution import Contribution
-    from app.models.cadeau import Cadeau
-    
-    # Vérifier que la famille existe
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
-    if not famille:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Famille non trouvée"
-        )
-    
-    # Vérifier que je suis le créateur de la famille
-    if famille.creator_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seul le créateur de la famille peut voir ce récapitulatif"
-        )
-    
-    # Récupérer tous les cadeaux de la famille
-    cadeaux_ids = [c.id for c in famille.cadeaux]
-    
-    # Récupérer toutes les contributions pour ces cadeaux
-    contributions = db.query(Contribution).filter(
-        Contribution.cadeau_id.in_(cadeaux_ids)
-    ).all()
-    
-    # Statistiques globales
-    total_contribue = db.query(func.sum(Contribution.montant)).filter(
-        Contribution.cadeau_id.in_(cadeaux_ids)
-    ).scalar() or 0.0
-    
-    nb_contributions = len(contributions)
-    
-    # Contributions par membre
-    contributions_par_membre = {}
-    for contrib in contributions:
-        user = db.query(User).filter(User.id == contrib.user_id).first()
-        if user:
-            if user.id not in contributions_par_membre:
-                contributions_par_membre[user.id] = {
-                    "user_id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "total_contribue": 0,
-                    "nb_contributions": 0,
-                    "contributions": []
-                }
-            
-            cadeau = db.query(Cadeau).filter(Cadeau.id == contrib.cadeau_id).first()
-            
-            contributions_par_membre[user.id]["total_contribue"] += contrib.montant
-            contributions_par_membre[user.id]["nb_contributions"] += 1
-            contributions_par_membre[user.id]["contributions"].append({
-                "id": contrib.id,
-                "montant": contrib.montant,
-                "message": contrib.message,
-                "is_anonymous": contrib.is_anonymous,
-                "created_at": contrib.created_at.isoformat(),
-                "cadeau_titre": cadeau.titre if cadeau else "Cadeau supprimé",
-                "cadeau_owner": cadeau.owner_id if cadeau else None
-            })
-    
-    # Contributions par cadeau
-    contributions_par_cadeau = {}
-    for cadeau in famille.cadeaux:
-        cadeau_contribs = [c for c in contributions if c.cadeau_id == cadeau.id]
-        total_cadeau = sum(c.montant for c in cadeau_contribs)
-        
+    if not famille: raise HTTPException(status_code=404, detail="Famille non trouvée")
+    if current_user not in famille.membres: raise HTTPException(status_code=403, detail="Vous devez être membre de cette famille")
+    if current_user.id == famille.pere_noel_id:
+        cadeaux = [c for c in famille.cadeaux if c.owner_id != famille.pere_noel_id]
+    elif current_user.id == famille.creator_id:
+        cadeaux = [c for c in famille.cadeaux if c.owner_id == famille.pere_noel_id]
+    else:
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas consulter ce récapitulatif")
+    ids = [c.id for c in cadeaux]
+    contributions = db.query(Contribution).filter(Contribution.cadeau_id.in_(ids)).all() if ids else []
+    par_membre = {}
+    par_cadeau = []
+    for cadeau in cadeaux:
+        cs = [c for c in contributions if c.cadeau_id == cadeau.id]
+        total = sum(float(c.montant) for c in cs)
         owner = db.query(User).filter(User.id == cadeau.owner_id).first()
-        
-        contributions_par_cadeau[cadeau.id] = {
-            "cadeau_id": cadeau.id,
-            "cadeau_titre": cadeau.titre,
-            "cadeau_prix": cadeau.prix,
-            "owner": owner.username if owner else "Inconnu",
-            "total_contribue": total_cadeau,
-            "reste": cadeau.prix - total_cadeau,
-            "pourcentage": (total_cadeau / cadeau.prix * 100) if cadeau.prix > 0 else 0,
-            "is_purchased": cadeau.is_purchased,
-            "nb_contributions": len(cadeau_contribs)
-        }
-    
-    return {
-        "famille_id": famille.id,
-        "famille_nom": famille.nom,
-        "stats_globales": {
-            "total_contribue": float(total_contribue),
-            "nb_contributions": nb_contributions,
-            "nb_cadeaux": len(famille.cadeaux),
-            "nb_contributeurs": len(contributions_par_membre)
-        },
-        "contributions_par_membre": list(contributions_par_membre.values()),
-        "contributions_par_cadeau": list(contributions_par_cadeau.values())
-    }
+        par_cadeau.append({"cadeau_id": cadeau.id, "cadeau_titre": cadeau.titre, "cadeau_prix": float(cadeau.prix), "owner": owner.username if owner else "Inconnu", "total_contribue": total, "reste": float(cadeau.prix)-total, "pourcentage": total/float(cadeau.prix)*100 if float(cadeau.prix) else 0, "is_purchased": cadeau.is_purchased, "nb_contributions": len(cs)})
+        for c in cs:
+            user = db.query(User).filter(User.id == c.user_id).first()
+            if not user: continue
+            item = par_membre.setdefault(user.id, {"user_id": user.id, "username": user.username, "email": user.email, "total_contribue": 0, "nb_contributions": 0, "contributions": []})
+            item["total_contribue"] += float(c.montant)
+            item["nb_contributions"] += 1
+            item["contributions"].append({"id": c.id, "montant": float(c.montant), "message": c.message, "is_anonymous": c.is_anonymous, "created_at": c.created_at.isoformat(), "cadeau_titre": cadeau.titre, "cadeau_owner": cadeau.owner_id})
+    return {"famille_id": famille.id, "famille_nom": famille.nom, "stats_globales": {"total_contribue": sum(float(c.montant) for c in contributions), "nb_contributions": len(contributions), "nb_cadeaux": len(cadeaux), "nb_contributeurs": len(par_membre)}, "contributions_par_membre": list(par_membre.values()), "contributions_par_cadeau": par_cadeau}
