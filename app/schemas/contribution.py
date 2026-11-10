@@ -28,7 +28,6 @@ class ContributionWithUser(BaseModel):
     id: int
     montant: float
     message: str
-    is_anonymous: bool
     created_at: datetime
     contributeur: Optional[str] = None
     
