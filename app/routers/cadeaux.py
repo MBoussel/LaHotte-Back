@@ -20,7 +20,9 @@ def creer_cadeau(
     current_user: User = Depends(get_current_active_user)
 ):
     """Créer un nouveau cadeau et l'ajouter à plusieurs familles."""
-    # Vérifier que toutes les familles existent et que je suis membre
+    # Un cadeau appartient à une seule famille.
+    if len(cadeau.famille_ids) != 1:
+        raise HTTPException(status_code=400, detail="Un cadeau doit appartenir à une seule famille")
     familles = []
     for famille_id in cadeau.famille_ids:
         famille = db.query(Famille).filter(Famille.id == famille_id).first()
