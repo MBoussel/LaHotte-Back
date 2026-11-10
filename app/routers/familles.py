@@ -573,24 +573,28 @@ def lister_invitations_famille(
 def definir_pere_noel(
     famille_id: int,
     user_id: int,
+    noel_type: str = "pere_noel",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Désigner ou remplacer le Père Noël (créateur uniquement)."""
+    """Désigner ou remplacer le Père Noël ou la Mère Noël."""
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     if not famille:
         raise HTTPException(status_code=404, detail="Famille non trouvée")
     if famille.creator_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Seul le créateur peut désigner le Père Noël")
+        raise HTTPException(status_code=403, detail="Seul le créateur peut désigner le rôle Noël")
+    if noel_type not in ("pere_noel", "mere_noel"):
+        raise HTTPException(status_code=400, detail="Type Noël invalide")
     if user_id == famille.creator_id:
         raise HTTPException(status_code=400, detail="Le créateur ne peut pas être le Père Noël")
     pere_noel = db.query(User).filter(User.id == user_id).first()
     if not pere_noel or pere_noel not in famille.membres:
         raise HTTPException(status_code=400, detail="Le Père Noël doit être membre de cette famille")
     famille.pere_noel_id = pere_noel.id
+    famille.noel_type = noel_type
     db.commit()
     db.refresh(famille)
-    return {"pere_noel_id": famille.pere_noel_id, "pere_noel_username": pere_noel.username}
+    return {"pere_noel_id": famille.pere_noel_id, "pere_noel_username": pere_noel.username, "noel_type": famille.noel_type}
 
 
 @router.get("/{famille_id}/contributions-recap")
