@@ -44,6 +44,7 @@ class Famille(Base):
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     creator_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     pere_noel_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    noel_type: Mapped[str] = mapped_column(String(20), default="pere_noel", nullable=False)
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
     
     # Relations

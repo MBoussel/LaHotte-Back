@@ -38,6 +38,7 @@ class FamilleResponse(FamilleBase):
     id: int
     creator_id: int
     pere_noel_id: Optional[int] = None
+    noel_type: str = "pere_noel"
     pere_noel_username: Optional[str] = None
     created_at: datetime
     
