@@ -31,7 +31,9 @@ def contribuer_cadeau(
     if cadeau.owner_id == current_user.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vous ne pouvez pas contribuer à votre propre cadeau")
     
-    is_member = any(current_user in famille.membres for famille in cadeau.familles)
+    if len(cadeau.familles) != 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ce cadeau doit être associé à une seule famille")
+    is_member = current_user in cadeau.familles[0].membres
     if not is_member:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous devez être membre de la famille")
     
@@ -63,8 +65,10 @@ def lister_contributions_cadeau(
     if not cadeau:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cadeau non trouvé")
     
-    famille = cadeau.familles[0] if cadeau.familles else None
-    if not famille or current_user not in famille.membres:
+    if len(cadeau.familles) != 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ce cadeau doit être associé à une seule famille")
+    famille = cadeau.familles[0]
+    if current_user not in famille.membres:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous devez être membre de la famille")
 
     is_pere_noel = famille.pere_noel_id == current_user.id
