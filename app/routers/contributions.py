@@ -35,19 +35,7 @@ def contribuer_cadeau(
     if not is_member:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous devez être membre de la famille")
     
-    # Vérifier que le montant ne dépasse pas le reste
-    from sqlalchemy import func
-    total_contribue = db.query(func.sum(Contribution.montant)).filter(
-        Contribution.cadeau_id == cadeau_id
-    ).scalar() or 0.0
-    
-    reste = float(cadeau.prix) - float(total_contribue)
-    
-    if contribution.montant > reste + 0.01:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Le montant ne peut pas dépasser le reste à financer ({reste:.2f} €)"
-        )
+    # Les contributions peuvent dépasser le prix du cadeau.
 
     db_contribution = Contribution(
         cadeau_id=cadeau_id,
@@ -75,13 +63,18 @@ def lister_contributions_cadeau(
     if not cadeau:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cadeau non trouvé")
     
-    if cadeau.owner_id == current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous ne pouvez pas voir les contributions de votre propre cadeau")
-    
-    is_member = any(current_user in famille.membres for famille in cadeau.familles)
-    if not is_member:
+    famille = cadeau.familles[0] if cadeau.familles else None
+    if not famille or current_user not in famille.membres:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous devez être membre de la famille")
-    
+
+    is_pere_noel = famille.pere_noel_id == current_user.id
+    is_creator = famille.creator_id == current_user.id
+    can_see = (is_pere_noel and cadeau.owner_id != famille.pere_noel_id) or (
+        is_creator and famille.pere_noel_id is not None and cadeau.owner_id == famille.pere_noel_id
+    )
+    if not can_see or cadeau.owner_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous n'avez pas accès aux détails de ces contributions")
+
     contributions = db.query(Contribution).filter(Contribution.cadeau_id == cadeau_id).all()
     
     result = []
