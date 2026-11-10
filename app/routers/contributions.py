@@ -31,30 +31,20 @@ def contribuer_cadeau(
     if cadeau.owner_id == current_user.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vous ne pouvez pas contribuer à votre propre cadeau")
     
-    is_member = any(current_user in famille.membres for famille in cadeau.familles)
+    if len(cadeau.familles) != 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ce cadeau doit être associé à une seule famille")
+    is_member = current_user in cadeau.familles[0].membres
     if not is_member:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous devez être membre de la famille")
     
-    # Vérifier que le montant ne dépasse pas le reste
-    from sqlalchemy import func
-    total_contribue = db.query(func.sum(Contribution.montant)).filter(
-        Contribution.cadeau_id == cadeau_id
-    ).scalar() or 0.0
-    
-    reste = float(cadeau.prix) - float(total_contribue)
-    
-    if contribution.montant > reste + 0.01:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Le montant ne peut pas dépasser le reste à financer ({reste:.2f} €)"
-        )
+    # Les contributions peuvent dépasser le prix du cadeau.
 
     db_contribution = Contribution(
         cadeau_id=cadeau_id,
         user_id=current_user.id,
         montant=contribution.montant,
         message=contribution.message,
-        is_anonymous=contribution.is_anonymous
+        is_anonymous=False
     )
     
     db.add(db_contribution)
@@ -75,13 +65,20 @@ def lister_contributions_cadeau(
     if not cadeau:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cadeau non trouvé")
     
-    if cadeau.owner_id == current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous ne pouvez pas voir les contributions de votre propre cadeau")
-    
-    is_member = any(current_user in famille.membres for famille in cadeau.familles)
-    if not is_member:
+    if len(cadeau.familles) != 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ce cadeau doit être associé à une seule famille")
+    famille = cadeau.familles[0]
+    if current_user not in famille.membres:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous devez être membre de la famille")
-    
+
+    is_pere_noel = famille.pere_noel_id == current_user.id
+    is_creator = famille.creator_id == current_user.id
+    can_see = (is_pere_noel and cadeau.owner_id != famille.pere_noel_id) or (
+        is_creator and famille.pere_noel_id is not None and cadeau.owner_id == famille.pere_noel_id
+    )
+    if not can_see or cadeau.owner_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Vous n'avez pas accès aux détails de ces contributions")
+
     contributions = db.query(Contribution).filter(Contribution.cadeau_id == cadeau_id).all()
     
     result = []
@@ -91,9 +88,8 @@ def lister_contributions_cadeau(
             "id": contrib.id,
             "montant": contrib.montant,
             "message": contrib.message,
-            "is_anonymous": contrib.is_anonymous,
             "created_at": contrib.created_at,
-            "contributeur": None if contrib.is_anonymous else (user.username if user else "Inconnu")
+            "contributeur": user.username if user else "Inconnu"
         })
     
     return result
@@ -158,7 +154,6 @@ def modifier_contribution(
     contribution_id: int,
     montant: float = None,
     message: str = None,
-    is_anonymous: bool = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -182,8 +177,6 @@ def modifier_contribution(
         contribution.montant = montant
     if message is not None:
         contribution.message = message
-    if is_anonymous is not None:
-        contribution.is_anonymous = is_anonymous
     
     db.commit()
     db.refresh(contribution)

@@ -20,7 +20,9 @@ def creer_cadeau(
     current_user: User = Depends(get_current_active_user)
 ):
     """Créer un nouveau cadeau et l'ajouter à plusieurs familles."""
-    # Vérifier que toutes les familles existent et que je suis membre
+    # Un cadeau appartient à une seule famille.
+    if len(cadeau.famille_ids) != 1:
+        raise HTTPException(status_code=400, detail="Un cadeau doit appartenir à une seule famille")
     familles = []
     for famille_id in cadeau.famille_ids:
         famille = db.query(Famille).filter(Famille.id == famille_id).first()
@@ -81,8 +83,6 @@ def creer_cadeau(
         "photo_url": db_cadeau.photo_url,
         "lien_achat": db_cadeau.lien_achat,
         "owner_id": db_cadeau.owner_id,
-        "is_purchased": db_cadeau.is_purchased,
-        "purchased_by_id": db_cadeau.purchased_by_id,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in db_cadeau.beneficiaires]
     }
 
@@ -96,7 +96,16 @@ def lister_tous_cadeaux(
 ):
     """Récupérer tous les cadeaux (visible uniquement aux admins ou pour debug)."""
     cadeaux = db.query(Cadeau).offset(skip).limit(limit).all()
-    return cadeaux
+    return [{
+        "id": cadeau.id,
+        "titre": cadeau.titre,
+        "prix": cadeau.prix,
+        "description": cadeau.description,
+        "photo_url": cadeau.photo_url,
+        "lien_achat": cadeau.lien_achat,
+        "owner_id": cadeau.owner_id,
+        "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
+    } for cadeau in cadeaux]
 
 
 @router.get("/me")
@@ -117,8 +126,6 @@ def lister_mes_cadeaux(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
-            "is_purchased": cadeau.is_purchased,
-            "purchased_by_id": cadeau.purchased_by_id,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
         })
     
@@ -155,8 +162,6 @@ def recuperer_cadeau(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
-        "is_purchased": cadeau.is_purchased,
-        "purchased_by_id": cadeau.purchased_by_id,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
     }
 
@@ -225,8 +230,6 @@ def modifier_cadeau(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
-        "is_purchased": cadeau.is_purchased,
-        "purchased_by_id": cadeau.purchased_by_id,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
     }
 
@@ -255,102 +258,6 @@ def supprimer_cadeau(
     db.commit()
     
     return {"message": "Cadeau supprimé avec succès"}
-
-
-@router.post("/{cadeau_id}/mark-purchased")
-def marquer_achete(
-    cadeau_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """Marquer un cadeau comme acheté."""
-    cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
-    if not cadeau:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cadeau non trouvé"
-        )
-    
-    # Vérifier que je ne suis PAS le propriétaire
-    if cadeau.owner_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous ne pouvez pas acheter votre propre cadeau"
-        )
-    
-    # Vérifier que je suis membre d'une famille qui contient ce cadeau
-    is_member = any(current_user in famille.membres for famille in cadeau.familles)
-    if not is_member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous devez être membre d'une famille pour acheter ce cadeau"
-        )
-    
-    if cadeau.is_purchased:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ce cadeau a déjà été acheté"
-        )
-    
-    cadeau.is_purchased = True
-    cadeau.purchased_by_id = current_user.id
-    
-    db.commit()
-    db.refresh(cadeau)
-    
-    return {
-        "id": cadeau.id,
-        "titre": cadeau.titre,
-        "prix": cadeau.prix,
-        "description": cadeau.description,
-        "photo_url": cadeau.photo_url,
-        "lien_achat": cadeau.lien_achat,
-        "owner_id": cadeau.owner_id,
-        "is_purchased": cadeau.is_purchased,
-        "purchased_by_id": cadeau.purchased_by_id,
-        "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
-    }
-
-
-@router.post("/{cadeau_id}/unmark-purchased")
-def demarquer_achete(
-    cadeau_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """Annuler le marquage "acheté" d'un cadeau."""
-    cadeau = db.query(Cadeau).filter(Cadeau.id == cadeau_id).first()
-    if not cadeau:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cadeau non trouvé"
-        )
-    
-    # Seul celui qui a marqué le cadeau peut le démarquer
-    if cadeau.purchased_by_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous n'avez pas marqué ce cadeau comme acheté"
-        )
-    
-    cadeau.is_purchased = False
-    cadeau.purchased_by_id = None
-    
-    db.commit()
-    db.refresh(cadeau)
-    
-    return {
-        "id": cadeau.id,
-        "titre": cadeau.titre,
-        "prix": cadeau.prix,
-        "description": cadeau.description,
-        "photo_url": cadeau.photo_url,
-        "lien_achat": cadeau.lien_achat,
-        "owner_id": cadeau.owner_id,
-        "is_purchased": cadeau.is_purchased,
-        "purchased_by_id": cadeau.purchased_by_id,
-        "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
-    }
 
 
 @router.get("/famille/{famille_id}")
@@ -388,8 +295,6 @@ def lister_cadeaux_famille(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
-            "is_purchased": cadeau.is_purchased,
-            "purchased_by_id": cadeau.purchased_by_id,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
         })
     
@@ -418,8 +323,6 @@ def lister_cadeaux_beneficiaire(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
-            "is_purchased": cadeau.is_purchased,
-            "purchased_by_id": cadeau.purchased_by_id,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
         })
     

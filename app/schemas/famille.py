@@ -37,6 +37,8 @@ class FamilleResponse(FamilleBase):
     """Schéma pour la réponse"""
     id: int
     creator_id: int
+    pere_noel_id: Optional[int] = None
+    pere_noel_username: Optional[str] = None
     created_at: datetime
     
     class Config:

@@ -14,7 +14,7 @@ class CadeauBase(BaseModel):
 
 class CadeauCreate(CadeauBase):
     """Schéma pour créer un cadeau"""
-    famille_ids: List[int] = Field(..., description="IDs des familles où ajouter le cadeau")
+    famille_ids: List[int] = Field(..., min_length=1, max_length=1, description="ID de l’unique famille du cadeau")
     beneficiaire_ids: List[int] = Field(default=[], description="IDs des bénéficiaires du cadeau (optionnel)")
 
 
@@ -41,8 +41,6 @@ class CadeauResponse(CadeauBase):
     """Schéma pour la réponse"""
     id: int
     owner_id: int
-    is_purchased: bool
-    purchased_by_id: Optional[int] = None
     beneficiaires: List[BeneficiaireSimple] = []
     
     class Config:
