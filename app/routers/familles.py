@@ -628,8 +628,13 @@ def recap_contributions_famille(
         cadeau = db.query(Cadeau).filter(Cadeau.id == contrib.cadeau_id).first()
         if not user or not cadeau:
             continue
-        item = membres.setdefault(user.id, {
-            "user_id": user.id, "username": user.username,
+
+        # Respecter le choix d'anonymat, même dans le récapitulatif des rôles autorisés.
+        membre_key = f"anonyme-{contrib.id}" if contrib.is_anonymous else f"user-{user.id}"
+        username = "Anonyme" if contrib.is_anonymous else user.username
+        user_id = None if contrib.is_anonymous else user.id
+        item = membres.setdefault(membre_key, {
+            "user_id": user_id, "username": username,
             "total_contribue": 0.0, "nb_contributions": 0, "contributions": []
         })
         item["total_contribue"] += float(contrib.montant)
