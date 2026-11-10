@@ -44,7 +44,7 @@ def contribuer_cadeau(
         user_id=current_user.id,
         montant=contribution.montant,
         message=contribution.message,
-        is_anonymous=contribution.is_anonymous
+        is_anonymous=False
     )
     
     db.add(db_contribution)
@@ -88,9 +88,8 @@ def lister_contributions_cadeau(
             "id": contrib.id,
             "montant": contrib.montant,
             "message": contrib.message,
-            "is_anonymous": contrib.is_anonymous,
             "created_at": contrib.created_at,
-            "contributeur": None if contrib.is_anonymous else (user.username if user else "Inconnu")
+            "contributeur": user.username if user else "Inconnu"
         })
     
     return result
@@ -155,7 +154,6 @@ def modifier_contribution(
     contribution_id: int,
     montant: float = None,
     message: str = None,
-    is_anonymous: bool = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -179,8 +177,6 @@ def modifier_contribution(
         contribution.montant = montant
     if message is not None:
         contribution.message = message
-    if is_anonymous is not None:
-        contribution.is_anonymous = is_anonymous
     
     db.commit()
     db.refresh(contribution)
