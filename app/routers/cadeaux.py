@@ -94,7 +94,13 @@ def lister_tous_cadeaux(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Récupérer tous les cadeaux (visible uniquement aux admins ou pour debug)."""
+    """Récupérer tous les cadeaux (réservé aux administrateurs)."""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès réservé aux administrateurs"
+        )
+
     cadeaux = db.query(Cadeau).offset(skip).limit(limit).all()
     return [{
         "id": cadeau.id,
