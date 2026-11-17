@@ -2,8 +2,9 @@
 API Liste de Noël 🎄
 Application FastAPI pour gérer des listes de cadeaux
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.database import engine, Base
 from app.routers import cadeaux, auth, familles, contributions
@@ -17,6 +18,28 @@ app = FastAPI(
     description="Une API pour gérer les listes de cadeaux de Noël en famille",
     version="1.0.0"
 )
+
+# Protection CSRF : les requêtes qui modifient des données et utilisent le
+# cookie de session doivent provenir d'une origine frontend explicitement autorisée.
+TRUSTED_FRONTEND_ORIGINS = {
+    origin.rstrip("/")
+    for origin in (
+        settings.FRONTEND_URL,
+        "https://deploy-preview-11--lahotte.netlify.app",
+    )
+    if origin
+}
+
+@app.middleware("http")
+async def protect_cookie_authenticated_writes(request: Request, call_next):
+    if request.method not in {"GET", "HEAD", "OPTIONS"} and request.cookies.get("access_token"):
+        origin = request.headers.get("origin")
+        if not origin or origin.rstrip("/") not in TRUSTED_FRONTEND_ORIGINS:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Origine de la requête non autorisée"},
+            )
+    return await call_next(request)
 
 # Configuration CORS
 app.add_middleware(

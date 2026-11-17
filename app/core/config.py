@@ -14,6 +14,13 @@ class Settings:
     
     # JWT
     SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+    if DATABASE_URL.startswith(("postgresql://", "postgresql+")) and (
+        not os.getenv("SECRET_KEY")
+        or SECRET_KEY == "dev-secret-key-change-in-production"
+    ):
+        raise RuntimeError(
+            "SECRET_KEY doit être définie avec une valeur forte en environnement PostgreSQL."
+        )
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
     
