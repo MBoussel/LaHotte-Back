@@ -1,6 +1,7 @@
 """Extraction sécurisée des métadonnées produit depuis une URL publique."""
 import ipaddress
 import socket
+from contextlib import closing
 from html.parser import HTMLParser
 from urllib.parse import urljoin
 
@@ -164,7 +165,9 @@ def extract_product_image(
             html = None
             for redirect_count in range(MAX_REDIRECTS + 1):
                 request = _build_pinned_request(client, current_url, headers)
-                with client.send(request, stream=True) as response:
+                # httpx.Response n'est pas un context manager. On ferme explicitement
+                # le flux, y compris en cas de redirection ou d'erreur.
+                with closing(client.send(request, stream=True)) as response:
                     if response.status_code in (301, 302, 303, 307, 308):
                         location = response.headers.get("location")
                         if not location or redirect_count >= MAX_REDIRECTS:
