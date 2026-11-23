@@ -89,7 +89,7 @@ class ProductUrlSecurityTests(unittest.TestCase):
                 return False
 
             def build_request(self, method, url, headers):
-                return object()
+                return httpx.Request(method, url, headers=headers)
 
             def send(self, request, stream=False):
                 return response
