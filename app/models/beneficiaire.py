@@ -19,6 +19,7 @@ class Beneficiaire(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     famille_id: Mapped[int] = mapped_column(ForeignKey("familles.id", ondelete="CASCADE"), nullable=False, index=True)
     nom: Mapped[str] = mapped_column(String(100), nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
 
