@@ -1,5 +1,6 @@
 """Extraction sécurisée des métadonnées produit depuis une URL publique."""
 import ipaddress
+import logging
 import socket
 from contextlib import closing
 from html.parser import HTMLParser
@@ -13,6 +14,7 @@ from app.core.security import get_current_active_user
 from app.models.user import User
 
 router = APIRouter(prefix="/produits", tags=["produits"])
+logger = logging.getLogger(__name__)
 
 MAX_HTML_BYTES = 2 * 1024 * 1024
 MAX_REDIRECTS = 3
@@ -151,9 +153,20 @@ def extract_product_image(
 ):
     """Récupère l'image Open Graph/Twitter d'une page produit publique."""
     current_url = str(_parse_public_url(payload.url))
+    # Certains sites Shopify filtrent les agents automatisés trop explicites.
+    # On utilise des en-têtes de navigateur classiques, sans contourner
+    # authentification, CAPTCHA ou autre contrôle d'accès.
     headers = {
-        "User-Agent": "LaHotteProductPreview/1.0 (+https://lahotte.gazggul.ovh)",
-        "Accept": "text/html,application/xhtml+xml",
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+            "image/avif,image/webp,*/*;q=0.8"
+        ),
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+        "Cache-Control": "no-cache",
     }
 
     try:
@@ -179,15 +192,28 @@ def extract_product_image(
                         continue
 
                     if response.status_code != 200:
-                        raise HTTPException(
-                            status_code=422,
-                            detail="La page produit n'est pas accessible.",
+                        logger.warning(
+                            "Product image extraction: upstream HTTP %s (host=%s)",
+                            response.status_code,
+                            httpx.URL(current_url).host,
                         )
+                        detail = (
+                            "Le site marchand refuse la récupération automatique "
+                            "de sa page (accès refusé)."
+                            if response.status_code in (401, 403, 429)
+                            else "La page produit n'est pas accessible."
+                        )
+                        raise HTTPException(status_code=422, detail=detail)
                     content_type = response.headers.get("content-type", "").lower()
                     if (
                         "text/html" not in content_type
                         and "application/xhtml+xml" not in content_type
                     ):
+                        logger.warning(
+                            "Product image extraction: unexpected content type %r (host=%s)",
+                            content_type[:100],
+                            httpx.URL(current_url).host,
+                        )
                         raise HTTPException(
                             status_code=422,
                             detail="Cette adresse ne mène pas à une page produit HTML.",
@@ -224,7 +250,14 @@ def extract_product_image(
         return {"photo_url": image_url, "titre": title or None}
     except HTTPException:
         raise
-    except (httpx.HTTPError, UnicodeError, ValueError, OSError):
+    except (httpx.HTTPError, UnicodeError, ValueError, OSError) as exc:
+        # Ne jamais journaliser l'URL complète : elle peut contenir des
+        # paramètres de suivi ou des données privées.
+        logger.warning(
+            "Product image extraction failed: %s (host=%s)",
+            type(exc).__name__,
+            httpx.URL(current_url).host,
+        )
         raise HTTPException(
             status_code=422,
             detail="Impossible d'extraire la photo de cette page produit.",

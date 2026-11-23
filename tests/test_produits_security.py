@@ -81,6 +81,8 @@ class ProductUrlSecurityTests(unittest.TestCase):
 
         response = FakeResponse()
 
+        captured_request = {}
+
         class FakeClient:
             def __enter__(self):
                 return self
@@ -89,6 +91,7 @@ class ProductUrlSecurityTests(unittest.TestCase):
                 return False
 
             def build_request(self, method, url, headers):
+                captured_request.update(headers)
                 return httpx.Request(method, url, headers=headers)
 
             def send(self, request, stream=False):
@@ -104,6 +107,8 @@ class ProductUrlSecurityTests(unittest.TestCase):
         self.assertEqual(result["photo_url"], "https://cdn.example.com/gift.jpg")
         self.assertEqual(result["titre"], "Un cadeau")
         self.assertTrue(response.closed)
+        self.assertIn("Chrome/", captured_request["User-Agent"])
+        self.assertIn("fr-FR", captured_request["Accept-Language"])
 
 
 if __name__ == "__main__":
