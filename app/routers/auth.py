@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -13,7 +13,7 @@ from app.core.security import (
     create_access_token,
     get_current_active_user
 )
-from app.core.config import settings
+from app.core.config import settings\nfrom app.core.profile_storage import upload_profile_photo
 from pydantic import BaseModel
 
 router = APIRouter(
@@ -124,7 +124,7 @@ def get_current_user_info(current_user: User = Depends(get_current_active_user))
     """Obtenir les infos de l'utilisateur connecté"""
     return current_user
 
-@router.put("/me/avatar")
+@router.post("/me/avatar")\nasync def upload_my_avatar(\n    file: UploadFile = File(...),\n    db: Session = Depends(get_db),\n    current_user: User = Depends(get_current_active_user),\n):\n    """Téléverser une photo de profil pour le compte connecté."""\n    avatar_url = await upload_profile_photo(file, f"users/{current_user.id}")\n    current_user.avatar_url = avatar_url\n    db.commit()\n    db.refresh(current_user)\n    return {"message": "Photo de profil mise à jour", "avatar_url": avatar_url}\n\n\n@router.put("/me/avatar")
 def update_avatar(
     avatar_url: str,
     db: Session = Depends(get_db),
