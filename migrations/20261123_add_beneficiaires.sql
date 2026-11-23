@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS beneficiaires (
 CREATE INDEX IF NOT EXISTS ix_beneficiaires_famille_id ON beneficiaires(famille_id);
 
 CREATE TABLE IF NOT EXISTS beneficiaire_responsables (
-    beneficiaire_id BIGINT NOT NULL REFERENCES beneficiaires(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    beneficiaire_id INTEGER NOT NULL REFERENCES beneficiaires(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (beneficiaire_id, user_id)
 );
 
