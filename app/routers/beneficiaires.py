@@ -16,6 +16,7 @@ def _serialize(profil: Beneficiaire):
         "id": profil.id,
         "famille_id": profil.famille_id,
         "nom": profil.nom,
+        "avatar_url": profil.avatar_url,
         "created_by_id": profil.created_by_id,
         "responsables": [{"id": u.id, "username": u.username} for u in profil.responsables],
     }
