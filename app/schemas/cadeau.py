@@ -16,6 +16,7 @@ class CadeauCreate(CadeauBase):
     """Schéma pour créer un cadeau"""
     famille_ids: List[int] = Field(..., min_length=1, max_length=1, description="ID de l’unique famille du cadeau")
     beneficiaire_ids: List[int] = Field(default=[], description="IDs des bénéficiaires du cadeau (optionnel)")
+    beneficiaire_profil_id: Optional[int] = Field(None, description="Profil sans compte destinataire du cadeau")
 
 
 class CadeauUpdate(BaseModel):
