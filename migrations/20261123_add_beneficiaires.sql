@@ -2,10 +2,10 @@
 -- À exécuter une seule fois dans Supabase SQL Editor avant le déploiement du backend.
 
 CREATE TABLE IF NOT EXISTS beneficiaires (
-    id BIGSERIAL PRIMARY KEY,
-    famille_id BIGINT NOT NULL REFERENCES familles(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    famille_id INTEGER NOT NULL REFERENCES familles(id) ON DELETE CASCADE,
     nom VARCHAR(100) NOT NULL,
-    created_by_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_by_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS beneficiaire_responsables (
 );
 
 ALTER TABLE cadeaux
-    ADD COLUMN IF NOT EXISTS beneficiaire_profil_id BIGINT
+    ADD COLUMN IF NOT EXISTS beneficiaire_profil_id INTEGER
     REFERENCES beneficiaires(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS ix_cadeaux_beneficiaire_profil_id
