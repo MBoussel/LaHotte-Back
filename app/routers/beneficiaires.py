@@ -95,7 +95,8 @@ def modifier_responsables(
         raise HTTPException(status_code=403, detail="Vous devez être membre de cette famille")
     membres = {m.id: m for m in famille.membres}
     ids = set(data.responsable_ids)
-    ids.add(profil.created_by_id)
+    if profil.created_by_id in membres:
+        ids.add(profil.created_by_id)
     if any(user_id not in membres for user_id in ids):
         raise HTTPException(status_code=400, detail="Tous les responsables doivent être membres de la famille")
 
