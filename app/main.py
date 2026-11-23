@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.database import engine, Base
-from app.routers import cadeaux, auth, familles, contributions, beneficiaires
+from app.routers import cadeaux, auth, familles, contributions, beneficiaires, produits
 
 # Créer les tables dans la base de données
 Base.metadata.create_all(bind=engine)
@@ -33,13 +33,12 @@ app.include_router(auth.router)
 app.include_router(familles.router)
 app.include_router(contributions.router)
 app.include_router(beneficiaires.router)
+app.include_router(produits.router)
 
 
 @app.get("/", tags=["Root"])
 def root():
-    """
-    Page d'accueil de l'API.
-    """
+    """Page d'accueil de l'API."""
     return {
         "message": "Bienvenue sur l'API Liste de Noël ! 🎄",
         "version": "1.0.0",
@@ -49,14 +48,13 @@ def root():
             "auth": "/auth",
             "familles": "/familles",
             "contributions": "/contributions",
-            "beneficiaires": "/beneficiaires"
+            "beneficiaires": "/beneficiaires",
+            "produits": "/produits"
         }
     }
 
 
 @app.get("/health", tags=["Root"])
 def health_check():
-    """
-    Vérifier que l'API fonctionne.
-    """
+    """Vérifier que l'API fonctionne."""
     return {"status": "healthy"}
