@@ -98,8 +98,10 @@ def _build_pinned_request(client: httpx.Client, raw_url: str, headers: dict):
     port = url.port
     try:
         literal_ip = ipaddress.ip_address(host)
+        is_ip_literal = True
         addresses = [literal_ip]
     except ValueError:
+        is_ip_literal = False
         records = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
         addresses = list({
             ipaddress.ip_address(record[4][0]) for record in records
@@ -117,9 +119,7 @@ def _build_pinned_request(client: httpx.Client, raw_url: str, headers: dict):
     request_headers["Host"] = url.netloc.decode("ascii") if isinstance(url.netloc, bytes) else str(url.netloc)
     request = client.build_request("GET", pinned_url, headers=request_headers)
 
-    if not isinstance(literal_ip if "literal_ip" in locals() else None, ipaddress.IPv4Address) and not isinstance(
-        literal_ip if "literal_ip" in locals() else None, ipaddress.IPv6Address
-    ):
+    if not is_ip_literal:
         request.extensions["sni_hostname"] = host.encode("idna")
     return request
 
