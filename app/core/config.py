@@ -20,7 +20,7 @@ class Settings:
     # CORS
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
     
-    # Stripe (optionnel)
+    # Supabase Storage (la clé service_role reste exclusivement côté serveur)\n    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")\n    SUPABASE_SERVICE_ROLE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")\n    SUPABASE_AVATAR_BUCKET: str = os.getenv("SUPABASE_AVATAR_BUCKET", "avatars")\n\n    # Stripe (optionnel)
     STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
     STRIPE_PUBLISHABLE_KEY: str = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
     STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
