@@ -91,7 +91,9 @@ def modifier_responsables(
         raise HTTPException(status_code=403, detail="Seul un responsable peut gérer ce profil")
 
     famille = db.query(Famille).filter(Famille.id == profil.famille_id).first()
-    membres = {m.id: m for m in famille.membres} if famille else {}
+    if not famille or current_user not in famille.membres:
+        raise HTTPException(status_code=403, detail="Vous devez être membre de cette famille")
+    membres = {m.id: m for m in famille.membres}
     ids = set(data.responsable_ids)
     ids.add(profil.created_by_id)
     if any(user_id not in membres for user_id in ids):
