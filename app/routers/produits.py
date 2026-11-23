@@ -106,9 +106,15 @@ def _build_pinned_request(client: httpx.Client, raw_url: str, headers: dict):
     except ValueError:
         is_ip_literal = False
         records = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-        addresses = list({
-            ipaddress.ip_address(record[4][0]) for record in records
-        })
+        addresses = sorted(
+            {
+                ipaddress.ip_address(record[4][0]) for record in records
+            },
+            # Les environnements Render ne garantissent pas une sortie IPv6.
+            # Essayer IPv4 en premier évite de choisir arbitrairement une IPv6
+            # inaccessible alors qu'une adresse IPv4 publique est disponible.
+            key=lambda address: (address.version != 4, address.compressed),
+        )
 
     if not addresses or any(not address.is_global for address in addresses):
         raise HTTPException(
