@@ -14,7 +14,7 @@ Base.metadata.create_all(bind=engine)
 # Créer l'application FastAPI
 app = FastAPI(
     title="API Liste de Noël 🎄",
-    description="Une API pour gérer les listes de cadeaux de Noël en famille",
+    description="Une API pour gérer des listes de cadeaux de Noël en famille",
     version="1.0.0"
 )
 
@@ -30,8 +30,9 @@ app.add_middleware(
 # Inclure les routes
 app.include_router(cadeaux.router)
 app.include_router(auth.router)
-app.include_router(familles.router) 
-app.include_router(contributions.router)\napp.include_router(beneficiaires.router)
+app.include_router(familles.router)
+app.include_router(contributions.router)
+app.include_router(beneficiaires.router)
 
 
 @app.get("/", tags=["Root"])
@@ -47,7 +48,8 @@ def root():
             "cadeaux": "/cadeaux",
             "auth": "/auth",
             "familles": "/familles",
-            "contributions": "/contributions"
+            "contributions": "/contributions",
+            "beneficiaires": "/beneficiaires"
         }
     }
 
