@@ -95,7 +95,7 @@ def _build_pinned_request(client: httpx.Client, raw_url: str, headers: dict):
     """
     url = _parse_public_url(raw_url)
     host = url.host.rstrip(".").lower()
-    port = url.port
+    port = url.port or (443 if url.scheme == "https" else 80)
     try:
         literal_ip = ipaddress.ip_address(host)
         is_ip_literal = True
