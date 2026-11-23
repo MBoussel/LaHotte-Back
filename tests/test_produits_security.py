@@ -8,6 +8,8 @@ from app.routers.produits import (
     MetadataParser,
     _build_pinned_request,
     _parse_public_url,
+    ProductUrlRequest,
+    extract_product_image,
 )
 
 
@@ -53,6 +55,55 @@ class ProductUrlSecurityTests(unittest.TestCase):
         )
         self.assertEqual(parser.metadata["og:image"], "https://cdn.example.com/p.jpg")
         self.assertEqual(parser.metadata["og:title"], "Un cadeau")
+
+    @patch("app.routers.produits.socket.getaddrinfo")
+    @patch("app.routers.produits.httpx.Client")
+    def test_extract_endpoint_closes_httpx_stream_response(self, client_class, getaddrinfo):
+        getaddrinfo.return_value = [dns_record("93.184.216.34")]
+
+        html = (
+            b'<html><head>'
+            b'<meta property="og:image" content="https://cdn.example.com/gift.jpg">'
+            b'<meta property="og:title" content="Un cadeau">'
+            b'</head></html>'
+        )
+
+        class FakeResponse:
+            status_code = 200
+            headers = {"content-type": "text/html; charset=utf-8"}
+            closed = False
+
+            def iter_bytes(self):
+                yield html
+
+            def close(self):
+                self.closed = True
+
+        response = FakeResponse()
+
+        class FakeClient:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def build_request(self, method, url, headers):
+                return httpx.Request(method, url, headers=headers)
+
+            def send(self, request, stream=False):
+                return response
+
+        client_class.return_value = FakeClient()
+
+        result = extract_product_image(
+            ProductUrlRequest(url="https://example.com/product"),
+            current_user=object(),
+        )
+
+        self.assertEqual(result["photo_url"], "https://cdn.example.com/gift.jpg")
+        self.assertEqual(result["titre"], "Un cadeau")
+        self.assertTrue(response.closed)
 
 
 if __name__ == "__main__":
