@@ -48,30 +48,85 @@ class MetadataParser(HTMLParser):
             self.title_parts.append(data.strip())
 
 
-def _validate_public_http_url(raw_url: str) -> str:
+def _parse_public_url(raw_url: str) -> httpx.URL:
     try:
-        parsed = urlsplit(raw_url.strip())
-        if parsed.scheme not in ("http", "https"):
-            raise ValueError("scheme")
-        if not parsed.hostname or parsed.username or parsed.password:
-            raise ValueError("host")
-        if parsed.port not in (None, 80, 443):
+        url = httpx.URL(raw_url.strip())
+        if url.scheme not in ("http", "https") or not url.host:
+            raise ValueError("scheme or host")
+        if url.username or url.password:
+            raise ValueError("credentials")
+        expected_port = 443 if url.scheme == "https" else 80
+        if url.port != expected_port:
             raise ValueError("port")
-        host = parsed.hostname.rstrip(".").lower()
-        if host in {"localhost", "localhost.localdomain"} or host.endswith(".localhost") or host.endswith(".local"):
-            raise ValueError("local")
+        host = url.host.rstrip(".").lower()
+        if (
+            host in {"localhost", "localhost.localdomain"}
+            or host.endswith(".localhost")
+            or host.endswith(".local")
+        ):
+            raise ValueError("local host")
+
         try:
             addresses = [ipaddress.ip_address(host)]
         except ValueError:
-            addresses = [
-                ipaddress.ip_address(item[4][0])
-                for item in socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
-            ]
+            records = socket.getaddrinfo(
+                host, expected_port, type=socket.SOCK_STREAM
+            )
+            addresses = list({
+                ipaddress.ip_address(record[4][0]) for record in records
+            })
+
         if not addresses or any(not address.is_global for address in addresses):
-            raise ValueError("private")
-        return parsed.geturl()
-    except (ValueError, OSError):
-        raise HTTPException(status_code=400, detail="Cette adresse n'est pas une URL publique valide.")
+            raise ValueError("non-public address")
+        return url
+    except (ValueError, OSError, httpx.InvalidURL):
+        raise HTTPException(
+            status_code=400,
+            detail="Cette adresse n'est pas une URL publique valide.",
+        )
+
+
+def _build_pinned_request(client: httpx.Client, raw_url: str, headers: dict):
+    """Résout le domaine puis connecte HTTPX directement à l'IP vérifiée.
+
+    L'en-tête Host et le SNI TLS conservent le nom de domaine d'origine.
+    Ainsi, la connexion ne refait pas de résolution DNS susceptible de
+    pointer vers une adresse privée (DNS rebinding).
+    """
+    url = _parse_public_url(raw_url)
+    host = url.host.rstrip(".").lower()
+    port = url.port
+    try:
+        literal_ip = ipaddress.ip_address(host)
+        addresses = [literal_ip]
+    except ValueError:
+        records = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        addresses = list({
+            ipaddress.ip_address(record[4][0]) for record in records
+        })
+
+    if not addresses or any(not address.is_global for address in addresses):
+        raise HTTPException(
+            status_code=400,
+            detail="Cette adresse n'est pas une URL publique valide.",
+        )
+
+    # Une seule IP contrôlée est utilisée pour cette requête réseau.
+    pinned_url = url.copy_with(host=addresses[0].compressed)
+    request_headers = dict(headers)
+    request_headers["Host"] = url.netloc.decode("ascii") if isinstance(url.netloc, bytes) else str(url.netloc)
+    request = client.build_request("GET", pinned_url, headers=request_headers)
+
+    if not isinstance(literal_ip if "literal_ip" in locals() else None, ipaddress.IPv4Address) and not isinstance(
+        literal_ip if "literal_ip" in locals() else None, ipaddress.IPv6Address
+    ):
+        request.extensions["sni_hostname"] = host.encode("idna")
+    return request
+
+
+def _validate_public_image_url(raw_url: str) -> str:
+    url = _parse_public_url(raw_url)
+    return str(url)
 
 
 def _read_limited(response: httpx.Response) -> bytes:
@@ -80,7 +135,10 @@ def _read_limited(response: httpx.Response) -> bytes:
     for chunk in response.iter_bytes():
         total += len(chunk)
         if total > MAX_HTML_BYTES:
-            raise HTTPException(status_code=413, detail="La page produit est trop volumineuse.")
+            raise HTTPException(
+                status_code=413,
+                detail="La page produit est trop volumineuse.",
+            )
         chunks.append(chunk)
     return b"".join(chunks)
 
@@ -91,35 +149,54 @@ def extract_product_image(
     current_user: User = Depends(get_current_active_user),
 ):
     """Récupère l'image Open Graph/Twitter d'une page produit publique."""
-    current_url = _validate_public_http_url(payload.url)
+    current_url = str(_parse_public_url(payload.url))
     headers = {
         "User-Agent": "LaHotteProductPreview/1.0 (+https://lahotte.gazggul.ovh)",
         "Accept": "text/html,application/xhtml+xml",
     }
 
     try:
-        with httpx.Client(timeout=TIMEOUT, follow_redirects=False, trust_env=False, headers=headers) as client:
-            response = None
+        with httpx.Client(
+            timeout=TIMEOUT,
+            follow_redirects=False,
+            trust_env=False,
+        ) as client:
+            html = None
             for redirect_count in range(MAX_REDIRECTS + 1):
-                current_url = _validate_public_http_url(current_url)
-                with client.stream("GET", current_url) as streamed:
-                    if streamed.status_code in (301, 302, 303, 307, 308):
-                        location = streamed.headers.get("location")
+                request = _build_pinned_request(client, current_url, headers)
+                with client.send(request, stream=True) as response:
+                    if response.status_code in (301, 302, 303, 307, 308):
+                        location = response.headers.get("location")
                         if not location or redirect_count >= MAX_REDIRECTS:
-                            raise HTTPException(status_code=422, detail="Trop de redirections sur cette page produit.")
+                            raise HTTPException(
+                                status_code=422,
+                                detail="Trop de redirections sur cette page produit.",
+                            )
                         current_url = urljoin(current_url, location)
                         continue
-                    if streamed.status_code != 200:
-                        raise HTTPException(status_code=422, detail="La page produit n'est pas accessible.")
-                    content_type = streamed.headers.get("content-type", "").lower()
-                    if "text/html" not in content_type and "application/xhtml+xml" not in content_type:
-                        raise HTTPException(status_code=422, detail="Cette adresse ne mène pas à une page produit HTML.")
-                    html = _read_limited(streamed)
-                    response = streamed
+
+                    if response.status_code != 200:
+                        raise HTTPException(
+                            status_code=422,
+                            detail="La page produit n'est pas accessible.",
+                        )
+                    content_type = response.headers.get("content-type", "").lower()
+                    if (
+                        "text/html" not in content_type
+                        and "application/xhtml+xml" not in content_type
+                    ):
+                        raise HTTPException(
+                            status_code=422,
+                            detail="Cette adresse ne mène pas à une page produit HTML.",
+                        )
+                    html = _read_limited(response)
                     break
 
-        if response is None:
-            raise HTTPException(status_code=422, detail="Impossible de lire cette page produit.")
+        if html is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Impossible de lire cette page produit.",
+            )
 
         parser = MetadataParser()
         parser.feed(html.decode("utf-8", errors="replace"))
@@ -130,8 +207,12 @@ def extract_product_image(
             or parser.metadata.get("twitter:image:src")
         )
         if not image:
-            raise HTTPException(status_code=404, detail="Aucune photo automatique trouvée sur cette page.")
-        image_url = _validate_public_http_url(urljoin(current_url, image))
+            raise HTTPException(
+                status_code=404,
+                detail="Aucune photo automatique trouvée sur cette page.",
+            )
+
+        image_url = _validate_public_image_url(urljoin(current_url, image))
         title = (
             parser.metadata.get("og:title")
             or parser.metadata.get("twitter:title")
@@ -140,5 +221,8 @@ def extract_product_image(
         return {"photo_url": image_url, "titre": title or None}
     except HTTPException:
         raise
-    except (httpx.HTTPError, UnicodeError, ValueError):
-        raise HTTPException(status_code=422, detail="Impossible d'extraire la photo de cette page produit.")
+    except (httpx.HTTPError, UnicodeError, ValueError, OSError):
+        raise HTTPException(
+            status_code=422,
+            detail="Impossible d'extraire la photo de cette page produit.",
+        )
