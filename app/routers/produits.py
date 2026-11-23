@@ -56,7 +56,7 @@ def _parse_public_url(raw_url: str) -> httpx.URL:
         if url.username or url.password:
             raise ValueError("credentials")
         expected_port = 443 if url.scheme == "https" else 80
-        if url.port != expected_port:
+        if url.port not in (None, expected_port):
             raise ValueError("port")
         host = url.host.rstrip(".").lower()
         if (
