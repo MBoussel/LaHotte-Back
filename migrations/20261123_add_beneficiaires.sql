@@ -23,3 +23,7 @@ ALTER TABLE cadeaux
 
 CREATE INDEX IF NOT EXISTS ix_cadeaux_beneficiaire_profil_id
     ON cadeaux(beneficiaire_profil_id);
+
+-- Les nouvelles tables suivent le même principe de protection que les tables existantes.
+ALTER TABLE beneficiaires ENABLE ROW LEVEL SECURITY;
+ALTER TABLE beneficiaire_responsables ENABLE ROW LEVEL SECURITY;
