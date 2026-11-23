@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.database import engine, Base
-from app.routers import cadeaux, auth, familles, contributions
+from app.routers import cadeaux, auth, familles, contributions, beneficiaires
 
 # Créer les tables dans la base de données
 Base.metadata.create_all(bind=engine)
@@ -31,7 +31,7 @@ app.add_middleware(
 app.include_router(cadeaux.router)
 app.include_router(auth.router)
 app.include_router(familles.router) 
-app.include_router(contributions.router)
+app.include_router(contributions.router)\napp.include_router(beneficiaires.router)
 
 
 @app.get("/", tags=["Root"])
