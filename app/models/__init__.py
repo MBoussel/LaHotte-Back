@@ -5,5 +5,6 @@ from app.models.cadeau import Cadeau
 from app.models.invitation import Invitation
 from app.models.contribution import Contribution
 from app.models.demande_adhesion import DemandeAdhesion
+from app.models.beneficiaire import Beneficiaire
 
-__all__ = ["User", "Famille", "Cadeau", "Invitation", "Contribution", "DemandeAdhesion"]
+__all__ = ["User", "Famille", "Cadeau", "Invitation", "Contribution", "DemandeAdhesion", "Beneficiaire"]

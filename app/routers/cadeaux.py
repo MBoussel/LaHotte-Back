@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.cadeau import Cadeau
 from app.models.famille import Famille
+from app.models.beneficiaire import Beneficiaire
 from app.schemas.cadeau import CadeauCreate, CadeauUpdate, CadeauResponse
 from app.core.security import get_current_active_user
 
@@ -57,6 +58,18 @@ def creer_cadeau(
                 )
             beneficiaires.append(user)
     
+    # Un profil sans compte doit appartenir à cette famille et avoir autorisé le créateur.
+    profil_beneficiaire = None
+    if cadeau.beneficiaire_profil_id is not None:
+        profil_beneficiaire = db.query(Beneficiaire).filter(
+            Beneficiaire.id == cadeau.beneficiaire_profil_id,
+            Beneficiaire.famille_id == familles[0].id
+        ).first()
+        if not profil_beneficiaire:
+            raise HTTPException(status_code=404, detail="Profil bénéficiaire introuvable dans cette famille")
+        if current_user not in profil_beneficiaire.responsables:
+            raise HTTPException(status_code=403, detail="Vous n'êtes pas autorisé à ajouter des cadeaux pour ce bénéficiaire")
+
     # Créer le cadeau
     db_cadeau = Cadeau(
         titre=cadeau.titre,
@@ -65,6 +78,7 @@ def creer_cadeau(
         photo_url=cadeau.photo_url or "",
         lien_achat=cadeau.lien_achat or "",
         owner_id=current_user.id,
+        beneficiaire_profil_id=profil_beneficiaire.id if profil_beneficiaire else None,
     )
     
     # Ajouter aux familles et bénéficiaires
@@ -83,6 +97,8 @@ def creer_cadeau(
         "photo_url": db_cadeau.photo_url,
         "lien_achat": db_cadeau.lien_achat,
         "owner_id": db_cadeau.owner_id,
+"beneficiaire_profil_id": db_cadeau.beneficiaire_profil_id,
+"beneficiaire_profil_nom": profil_beneficiaire.nom if profil_beneficiaire else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in db_cadeau.beneficiaires]
     }
 
@@ -104,6 +120,8 @@ def lister_tous_cadeaux(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
+        "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
+        "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
     } for cadeau in cadeaux]
 
@@ -126,6 +144,8 @@ def lister_mes_cadeaux(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
+            "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
+            "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
         })
     
@@ -162,6 +182,8 @@ def recuperer_cadeau(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
+        "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
+        "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
     }
 
@@ -230,6 +252,8 @@ def modifier_cadeau(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
+        "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
+        "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
     }
 
@@ -270,7 +294,8 @@ def lister_cadeaux_famille(
     from sqlalchemy.orm import joinedload
     
     famille = db.query(Famille).options(
-        joinedload(Famille.cadeaux).joinedload(Cadeau.beneficiaires)
+        joinedload(Famille.cadeaux).joinedload(Cadeau.beneficiaires),
+        joinedload(Famille.cadeaux).joinedload(Cadeau.beneficiaire_profil)
     ).filter(Famille.id == famille_id).first()
     
     if not famille:
@@ -295,6 +320,8 @@ def lister_cadeaux_famille(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
+            "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
+            "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
         })
     
@@ -323,6 +350,8 @@ def lister_cadeaux_beneficiaire(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
+            "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
+            "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
         })
     

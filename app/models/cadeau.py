@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.models.user import User
     from app.models.famille import Famille
     from app.models.contribution import Contribution
+    from app.models.beneficiaire import Beneficiaire
 
 # Table d'association pour la relation many-to-many entre Cadeau et Famille
 cadeau_familles = Table(
@@ -47,9 +48,11 @@ class Cadeau(Base):
     
     # Foreign keys
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    beneficiaire_profil_id: Mapped[Optional[int]] = mapped_column(ForeignKey("beneficiaires.id", ondelete="SET NULL"), nullable=True)
     
     # Relations
     owner: Mapped["User"] = relationship(back_populates="cadeaux", foreign_keys=[owner_id])
+    beneficiaire_profil: Mapped[Optional["Beneficiaire"]] = relationship(back_populates="cadeaux")
     familles: Mapped[List["Famille"]] = relationship(
         secondary=cadeau_familles,
         back_populates="cadeaux"
