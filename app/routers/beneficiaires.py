@@ -7,7 +7,8 @@ from app.core.security import get_current_active_user
 from app.models.user import User
 from app.models.famille import Famille
 from app.models.beneficiaire import Beneficiaire
-from app.schemas.beneficiaire import BeneficiaireCreate, ResponsablesUpdate\nfrom app.core.profile_storage import upload_profile_photo
+from app.schemas.beneficiaire import BeneficiaireCreate, ResponsablesUpdate
+from app.core.profile_storage import upload_profile_photo
 
 router = APIRouter(prefix="/beneficiaires", tags=["Bénéficiaires"])
 
