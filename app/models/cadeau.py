@@ -44,6 +44,7 @@ class Cadeau(Base):
     photo_url: Mapped[Optional[str]] = mapped_column(Text, default="")
     lien_achat: Mapped[Optional[str]] = mapped_column(Text, default="")
     is_purchased: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     purchased_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     
     # Foreign keys
