@@ -56,6 +56,55 @@ class ProductUrlSecurityTests(unittest.TestCase):
         self.assertEqual(parser.metadata["og:image"], "https://cdn.example.com/p.jpg")
         self.assertEqual(parser.metadata["og:title"], "Un cadeau")
 
+    def test_jsonld_product_image_is_extracted_from_graph(self):
+        from app.routers.produits import _jsonld_product_images
+
+        data = {
+            "@context": "https://schema.org",
+            "@graph": [
+                {"@type": "Organization", "logo": "https://cdn.example.com/logo.png"},
+                {
+                    "@type": "Product",
+                    "name": "Sneakers",
+                    "image": [
+                        "https://cdn.example.com/shoe-front.jpg",
+                        {"@type": "ImageObject", "url": "https://cdn.example.com/shoe-side.jpg"},
+                    ],
+                },
+            ],
+        }
+        self.assertEqual(
+            list(_jsonld_product_images(data)),
+            [
+                "https://cdn.example.com/shoe-front.jpg",
+                "https://cdn.example.com/shoe-side.jpg",
+            ],
+        )
+
+    def test_gallery_fallback_ignores_logo_and_banner(self):
+        from app.routers.produits import _extract_product_gallery_image
+
+        parser = MetadataParser()
+        parser.feed(
+            '<img class="site-logo" src="/logo.png" alt="Logo">'
+            '<img class="hero-banner" src="/banner.jpg" alt="Banner">'
+            '<img class="product-gallery__image" src="/shoe.jpg" alt="Sneakers femme">'
+        )
+        self.assertEqual(
+            _extract_product_gallery_image(parser.image_candidates),
+            "/shoe.jpg",
+        )
+
+    def test_jsonld_parser_collects_script_content(self):
+        parser = MetadataParser()
+        parser.feed(
+            '<script type="application/ld+json">'
+            '{"@type":"Product","image":"https://cdn.example.com/item.jpg"}'
+            '</script>'
+        )
+        self.assertEqual(len(parser.jsonld_blocks), 1)
+        self.assertIn('"@type":"Product"', parser.jsonld_blocks[0])
+
     @patch("app.routers.produits.socket.getaddrinfo")
     @patch("app.routers.produits.httpx.Client")
     def test_extract_endpoint_closes_httpx_stream_response(self, client_class, getaddrinfo):
