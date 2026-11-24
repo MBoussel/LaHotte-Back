@@ -235,7 +235,9 @@ def modifier_cadeau(
         cadeau.photo_url = cadeau_update.photo_url
     if cadeau_update.lien_achat is not None:
         cadeau.lien_achat = cadeau_update.lien_achat
-    
+    if cadeau_update.is_favorite is not None:
+        cadeau.is_favorite = cadeau_update.is_favorite
+
     # Mettre à jour les bénéficiaires si fournis
     if cadeau_update.beneficiaire_ids is not None:
         beneficiaires = []
