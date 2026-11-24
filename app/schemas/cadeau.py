@@ -1,5 +1,5 @@
 """Schémas Pydantic pour la validation des cadeaux"""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 
 
@@ -11,6 +11,14 @@ class CadeauBase(BaseModel):
     photo_url: Optional[str] = Field("", max_length=500)
     lien_achat: Optional[str] = Field("", max_length=500)
     is_favorite: bool = False
+
+    @field_validator('titre', mode='before')
+    @classmethod
+    def capitaliser_titre(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value[:1].upper() + value[1:] if value else value
+        return value
 
 
 class CadeauCreate(CadeauBase):
@@ -29,6 +37,14 @@ class CadeauUpdate(BaseModel):
     lien_achat: Optional[str] = Field(None, max_length=500)
     beneficiaire_ids: Optional[List[int]] = Field(None, description="IDs des bénéficiaires")
     is_favorite: Optional[bool] = None
+
+    @field_validator('titre', mode='before')
+    @classmethod
+    def capitaliser_titre(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value[:1].upper() + value[1:] if value else value
+        return value
 
 
 class BeneficiaireSimple(BaseModel):
