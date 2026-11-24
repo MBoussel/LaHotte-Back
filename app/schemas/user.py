@@ -1,5 +1,5 @@
 """Schémas Pydantic pour les utilisateurs"""
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
 
@@ -10,6 +10,14 @@ class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="Nom d'utilisateur")
     first_name: Optional[str] = Field("", max_length=100)
     last_name: Optional[str] = Field("", max_length=100)
+
+    @field_validator("first_name", "last_name", mode="before")
+    @classmethod
+    def capitaliser_nom_personne(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value[:1].upper() + value[1:] if value else value
+        return value
 
 
 class UserCreate(UserBase):
@@ -22,6 +30,14 @@ class UserUpdate(BaseModel):
     first_name: Optional[str] = Field(None, max_length=100)
     last_name: Optional[str] = Field(None, max_length=100)
     avatar_url: Optional[str] = Field(None, max_length=500)
+
+    @field_validator('first_name', 'last_name', mode='before')
+    @classmethod
+    def capitaliser_nom_personne(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value[:1].upper() + value[1:] if value else value
+        return value
 
 
 class UserResponse(UserBase):
