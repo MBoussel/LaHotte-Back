@@ -107,7 +107,8 @@ def creer_cadeau(
         "description": db_cadeau.description,
         "photo_url": db_cadeau.photo_url,
         "lien_achat": db_cadeau.lien_achat,
-        "owner_id": db_cadeau.owner_id,\n        "is_favorite": db_cadeau.is_favorite,
+        "owner_id": db_cadeau.owner_id,
+        "is_favorite": db_cadeau.is_favorite,
 "beneficiaire_profil_id": db_cadeau.beneficiaire_profil_id,
 "beneficiaire_profil_nom": profil_beneficiaire.nom if profil_beneficiaire else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in db_cadeau.beneficiaires]
@@ -130,7 +131,8 @@ def lister_tous_cadeaux(
         "description": cadeau.description,
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
-        "owner_id": cadeau.owner_id,\n        "is_favorite": cadeau.is_favorite,
+        "owner_id": cadeau.owner_id,
+        "is_favorite": cadeau.is_favorite,
         "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
         "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -155,6 +157,7 @@ def lister_mes_cadeaux(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
+            "is_favorite": cadeau.is_favorite,
             "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
             "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -193,6 +196,7 @@ def recuperer_cadeau(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
+        "is_favorite": cadeau.is_favorite,
         "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
         "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -263,6 +267,7 @@ def modifier_cadeau(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
+        "is_favorite": cadeau.is_favorite,
         "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
         "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -331,6 +336,7 @@ def lister_cadeaux_famille(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
+            "is_favorite": cadeau.is_favorite,
             "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
             "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -361,6 +367,7 @@ def lister_cadeaux_beneficiaire(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
+            "is_favorite": cadeau.is_favorite,
             "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
             "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
