@@ -1,6 +1,6 @@
 """Routes pour la gestion des cadeaux"""
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -10,8 +10,19 @@ from app.models.famille import Famille
 from app.models.beneficiaire import Beneficiaire
 from app.schemas.cadeau import CadeauCreate, CadeauUpdate, CadeauResponse
 from app.core.security import get_current_active_user
+from app.core.profile_storage import upload_profile_photo
 
 router = APIRouter(prefix="/cadeaux", tags=["cadeaux"])
+
+
+@router.post("/photo")
+async def televerser_photo_cadeau(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Téléverser une image de cadeau dans le stockage Supabase sécurisé."""
+    photo_url = await upload_profile_photo(file, f"gifts/{current_user.id}")
+    return {"photo_url": photo_url}
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -97,6 +108,7 @@ def creer_cadeau(
         "photo_url": db_cadeau.photo_url,
         "lien_achat": db_cadeau.lien_achat,
         "owner_id": db_cadeau.owner_id,
+        "is_favorite": db_cadeau.is_favorite,
 "beneficiaire_profil_id": db_cadeau.beneficiaire_profil_id,
 "beneficiaire_profil_nom": profil_beneficiaire.nom if profil_beneficiaire else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in db_cadeau.beneficiaires]
@@ -120,6 +132,7 @@ def lister_tous_cadeaux(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
+        "is_favorite": cadeau.is_favorite,
         "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
         "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -144,6 +157,7 @@ def lister_mes_cadeaux(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
+            "is_favorite": cadeau.is_favorite,
             "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
             "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -182,6 +196,7 @@ def recuperer_cadeau(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
+        "is_favorite": cadeau.is_favorite,
         "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
         "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -220,7 +235,9 @@ def modifier_cadeau(
         cadeau.photo_url = cadeau_update.photo_url
     if cadeau_update.lien_achat is not None:
         cadeau.lien_achat = cadeau_update.lien_achat
-    
+    if cadeau_update.is_favorite is not None:
+        cadeau.is_favorite = cadeau_update.is_favorite
+
     # Mettre à jour les bénéficiaires si fournis
     if cadeau_update.beneficiaire_ids is not None:
         beneficiaires = []
@@ -252,6 +269,7 @@ def modifier_cadeau(
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
         "owner_id": cadeau.owner_id,
+        "is_favorite": cadeau.is_favorite,
         "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
         "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -320,6 +338,7 @@ def lister_cadeaux_famille(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
+            "is_favorite": cadeau.is_favorite,
             "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
             "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
@@ -350,6 +369,7 @@ def lister_cadeaux_beneficiaire(
             "photo_url": cadeau.photo_url,
             "lien_achat": cadeau.lien_achat,
             "owner_id": cadeau.owner_id,
+            "is_favorite": cadeau.is_favorite,
             "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
             "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
             "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]

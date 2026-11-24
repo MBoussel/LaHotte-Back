@@ -10,6 +10,7 @@ class CadeauBase(BaseModel):
     description: Optional[str] = Field("", max_length=5000)
     photo_url: Optional[str] = Field("", max_length=500)
     lien_achat: Optional[str] = Field("", max_length=500)
+    is_favorite: bool = False
 
 
 class CadeauCreate(CadeauBase):
@@ -27,6 +28,7 @@ class CadeauUpdate(BaseModel):
     photo_url: Optional[str] = Field(None, max_length=500)
     lien_achat: Optional[str] = Field(None, max_length=500)
     beneficiaire_ids: Optional[List[int]] = Field(None, description="IDs des bénéficiaires")
+    is_favorite: Optional[bool] = None
 
 
 class BeneficiaireSimple(BaseModel):
