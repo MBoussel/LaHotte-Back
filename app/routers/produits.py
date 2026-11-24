@@ -1,5 +1,6 @@
 """Extraction sécurisée des métadonnées produit depuis une URL publique."""
 import ipaddress
+import json
 import logging
 import socket
 from contextlib import closing
@@ -30,25 +31,109 @@ class MetadataParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.metadata = {}
         self.title_parts = []
+        self.jsonld_blocks = []
+        self.image_candidates = []
         self.in_title = False
+        self.in_jsonld = False
+        self.current_jsonld = []
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
-        if tag.lower() == "meta":
+        tag = tag.lower()
+        if tag == "meta":
             key = (values.get("property") or values.get("name") or "").lower()
             content = values.get("content", "").strip()
             if key and content and key not in self.metadata:
                 self.metadata[key] = content
-        elif tag.lower() == "title":
+        elif tag == "title":
             self.in_title = True
+        elif tag == "script" and "ld+json" in values.get("type", "").lower():
+            self.in_jsonld = True
+            self.current_jsonld = []
+        elif tag == "img":
+            self.image_candidates.append(values)
 
     def handle_endtag(self, tag):
-        if tag.lower() == "title":
+        tag = tag.lower()
+        if tag == "title":
             self.in_title = False
+        elif tag == "script" and self.in_jsonld:
+            self.jsonld_blocks.append("".join(self.current_jsonld))
+            self.current_jsonld = []
+            self.in_jsonld = False
 
     def handle_data(self, data):
         if self.in_title and data.strip():
             self.title_parts.append(data.strip())
+        if self.in_jsonld:
+            self.current_jsonld.append(data)
+
+
+def _jsonld_product_images(value):
+    """Yield images only from schema.org Product objects."""
+    if isinstance(value, list):
+        for item in value:
+            yield from _jsonld_product_images(item)
+        return
+    if not isinstance(value, dict):
+        return
+
+    types = value.get("@type", [])
+    if isinstance(types, str):
+        types = [types]
+    if any(str(item).lower() == "product" for item in types):
+        images = value.get("image", [])
+        if isinstance(images, (str, dict)):
+            images = [images]
+        if isinstance(images, list):
+            for image in images:
+                if isinstance(image, str):
+                    yield image
+                elif isinstance(image, dict):
+                    candidate = image.get("url") or image.get("contentUrl")
+                    if isinstance(candidate, str):
+                        yield candidate
+
+    # Product may be nested in @graph, mainEntity, or other schema wrappers.
+    for key, nested in value.items():
+        if key in {"image", "logo", "thumbnailUrl"}:
+            continue
+        if isinstance(nested, (dict, list)):
+            yield from _jsonld_product_images(nested)
+
+
+def _first_srcset_url(srcset):
+    if not isinstance(srcset, str) or not srcset.strip():
+        return None
+    # The first srcset entry is normally the smallest candidate; src is
+    # preferred separately when available.
+    return srcset.split(",")[0].strip().split()[0] if srcset.strip() else None
+
+
+def _extract_product_gallery_image(candidates):
+    """Conservative fallback: select an explicitly identified product image."""
+    ranked = []
+    for attrs in candidates:
+        context = " ".join(
+            str(attrs.get(key, "")) for key in ("alt", "class", "id", "data-testid", "itemprop")
+        ).lower()
+        if any(word in context for word in ("logo", "banner", "sprite", "icon", "payment")):
+            continue
+        if not any(word in context for word in ("product", "gallery", "pdp", "carousel", "product-image")):
+            continue
+        src = (
+            attrs.get("src")
+            or attrs.get("data-src")
+            or attrs.get("data-original")
+            or attrs.get("data-lazy-src")
+            or _first_srcset_url(attrs.get("srcset"))
+        )
+        if src:
+            # Images with descriptive alt text are more likely to be the
+            # actual item than decorative gallery placeholders.
+            ranked.append((bool(attrs.get("alt", "").strip()), src))
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return ranked[0][1] if ranked else None
 
 
 def _parse_public_url(raw_url: str) -> httpx.URL:
@@ -235,12 +320,31 @@ def extract_product_image(
 
         parser = MetadataParser()
         parser.feed(html.decode("utf-8", errors="replace"))
+        # 1. Social metadata remains the most direct product-image signal.
         image = (
             parser.metadata.get("og:image")
             or parser.metadata.get("og:image:secure_url")
             or parser.metadata.get("twitter:image")
             or parser.metadata.get("twitter:image:src")
         )
+
+        # 2. Product JSON-LD is common on Shopify, WooCommerce and major
+        # retailers. Parse only images attached to schema.org Product nodes.
+        if not image:
+            for block in parser.jsonld_blocks:
+                try:
+                    structured_data = json.loads(block)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                image = next(_jsonld_product_images(structured_data), None)
+                if image:
+                    break
+
+        # 3. Last resort: use an image explicitly marked as part of a product
+        # gallery. Avoid taking the first arbitrary <img> (often a logo/banner).
+        if not image:
+            image = _extract_product_gallery_image(parser.image_candidates)
+
         if not image:
             raise HTTPException(
                 status_code=404,
