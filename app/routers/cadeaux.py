@@ -1,6 +1,6 @@
 """Routes pour la gestion des cadeaux"""
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -10,8 +10,19 @@ from app.models.famille import Famille
 from app.models.beneficiaire import Beneficiaire
 from app.schemas.cadeau import CadeauCreate, CadeauUpdate, CadeauResponse
 from app.core.security import get_current_active_user
+from app.core.profile_storage import upload_profile_photo
 
 router = APIRouter(prefix="/cadeaux", tags=["cadeaux"])
+
+
+@router.post("/photo")
+async def televerser_photo_cadeau(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Téléverser une image de cadeau dans le stockage Supabase sécurisé."""
+    photo_url = await upload_profile_photo(file, f"gifts/{current_user.id}")
+    return {"photo_url": photo_url}
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -96,7 +107,7 @@ def creer_cadeau(
         "description": db_cadeau.description,
         "photo_url": db_cadeau.photo_url,
         "lien_achat": db_cadeau.lien_achat,
-        "owner_id": db_cadeau.owner_id,
+        "owner_id": db_cadeau.owner_id,\n        "is_favorite": db_cadeau.is_favorite,
 "beneficiaire_profil_id": db_cadeau.beneficiaire_profil_id,
 "beneficiaire_profil_nom": profil_beneficiaire.nom if profil_beneficiaire else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in db_cadeau.beneficiaires]
@@ -119,7 +130,7 @@ def lister_tous_cadeaux(
         "description": cadeau.description,
         "photo_url": cadeau.photo_url,
         "lien_achat": cadeau.lien_achat,
-        "owner_id": cadeau.owner_id,
+        "owner_id": cadeau.owner_id,\n        "is_favorite": cadeau.is_favorite,
         "beneficiaire_profil_id": cadeau.beneficiaire_profil_id,
         "beneficiaire_profil_nom": cadeau.beneficiaire_profil.nom if cadeau.beneficiaire_profil else None,
         "beneficiaires": [{"id": b.id, "username": b.username} for b in cadeau.beneficiaires]
