@@ -46,17 +46,12 @@ def _beneficiaire_visible_pour_membre(
     beneficiaire_user_id: int | None,
     beneficiaire_profil: Beneficiaire | None = None,
 ) -> bool:
-    """Applique les mêmes limites de visibilité lors d'une contribution."""
-    profil_est_santa = (
-        beneficiaire_profil is not None
-        and any(responsable.id == famille.pere_noel_id for responsable in beneficiaire_profil.responsables)
-    )
-    beneficiaire_est_santa = beneficiaire_user_id == famille.pere_noel_id or profil_est_santa
+    """Tout membre peut contribuer à la cagnotte d'un autre membre.
 
-    if current_user.id == famille.creator_id:
-        return famille.pere_noel_id is not None and beneficiaire_est_santa
-    if current_user.id == famille.pere_noel_id:
-        return not beneficiaire_est_santa
+    Les rôles Père/Mère Noël et créateur limitent uniquement la consultation
+    des détails des contributions, jamais la possibilité de contribuer.
+    L'appartenance à la famille est vérifiée séparément.
+    """
     return True
 
 
