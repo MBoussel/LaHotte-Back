@@ -25,7 +25,7 @@ def _cadeau_visible_pour_membre(cadeau: Cadeau, famille: Famille, current_user: 
         famille.pere_noel_id is not None
         and (
 # Compatibilité historique : les cadeaux du Père/Mère Noël étaient repérés par leur propriétaire.
-            cadeau.owner_id == famille.pere_noel_id
+            getattr(cadeau, "owner_id", None) == famille.pere_noel_id
             or             any(user.id == famille.pere_noel_id for user in cadeau.beneficiaires)
             or (
                 cadeau.beneficiaire_profil is not None
