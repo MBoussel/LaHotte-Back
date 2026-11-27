@@ -13,6 +13,7 @@ class ContributionResponse(BaseModel):
     cadeau_id: Optional[int] = None
     beneficiaire_user_id: Optional[int] = None
     beneficiaire_profil_id: Optional[int] = None
+    beneficiaire_nom: Optional[str] = None
     user_id: int
     montant: float
     message: str
