@@ -24,7 +24,7 @@ class CadeauBase(BaseModel):
 class CadeauCreate(CadeauBase):
     """Schéma pour créer un cadeau"""
     famille_ids: List[int] = Field(..., min_length=1, max_length=1, description="ID de l’unique famille du cadeau")
-    beneficiaire_ids: List[int] = Field(default=[], description="IDs des bénéficiaires du cadeau (optionnel)")
+    beneficiaire_ids: List[int] = Field(default=[], max_length=1, description="Un seul bénéficiaire utilisateur (optionnel)")
     beneficiaire_profil_id: Optional[int] = Field(None, description="Profil sans compte destinataire du cadeau")
 
 
@@ -35,7 +35,7 @@ class CadeauUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=5000)
     photo_url: Optional[str] = Field(None, max_length=500)
     lien_achat: Optional[str] = Field(None, max_length=500)
-    beneficiaire_ids: Optional[List[int]] = Field(None, description="IDs des bénéficiaires")
+    beneficiaire_ids: Optional[List[int]] = Field(None, max_length=1, description="Un seul bénéficiaire utilisateur")
     is_favorite: Optional[bool] = None
 
     @field_validator('titre', mode='before')
