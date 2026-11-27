@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from app.routers.contributions import _peut_voir_contributions
+from app.routers.contributions import _beneficiaire_visible_pour_membre, _peut_voir_contributions
 
 
 def user(user_id):
@@ -55,6 +55,45 @@ class ContributionVisibilityTests(unittest.TestCase):
         self.assertFalse(
             _peut_voir_contributions(
                 self.family, self.santa, None, profile
+            )
+        )
+
+    def test_creator_can_contribute_only_to_santa_beneficiary(self):
+        self.assertTrue(
+            _beneficiaire_visible_pour_membre(
+                self.family, self.creator, self.santa.id
+            )
+        )
+        self.assertFalse(
+            _beneficiaire_visible_pour_membre(
+                self.family, self.creator, self.member.id
+            )
+        )
+
+    def test_santa_cannot_contribute_to_own_beneficiary(self):
+        self.assertFalse(
+            _beneficiaire_visible_pour_membre(
+                self.family, self.santa, self.santa.id
+            )
+        )
+        self.assertTrue(
+            _beneficiaire_visible_pour_membre(
+                self.family, self.santa, self.member.id
+            )
+        )
+
+    def test_regular_member_can_contribute_to_other_beneficiaries(self):
+        self.assertTrue(
+            _beneficiaire_visible_pour_membre(
+                self.family, self.member, self.creator.id
+            )
+        )
+
+    def test_creator_can_contribute_to_profile_managed_by_santa(self):
+        profile = SimpleNamespace(responsables=[self.santa])
+        self.assertTrue(
+            _beneficiaire_visible_pour_membre(
+                self.family, self.creator, None, profile
             )
         )
 
