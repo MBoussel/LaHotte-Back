@@ -50,7 +50,11 @@ def creer_cadeau(
             )
         familles.append(famille)
     
-    # Vérifier les bénéficiaires
+    # Un cadeau ne peut cibler qu'une seule personne : un membre OU un profil sans compte.
+    if len(cadeau.beneficiaire_ids) > 1 or (cadeau.beneficiaire_profil_id is not None and cadeau.beneficiaire_ids):
+        raise HTTPException(status_code=400, detail="Un cadeau doit avoir un seul bénéficiaire")
+
+    # Vérifier le bénéficiaire utilisateur unique
     beneficiaires = []
     if cadeau.beneficiaire_ids:
         for benef_id in cadeau.beneficiaire_ids:
