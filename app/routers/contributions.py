@@ -20,12 +20,23 @@ def _famille_accessible(famille: Famille, current_user: User) -> None:
         raise HTTPException(status_code=403, detail="Vous devez être membre de la famille")
 
 
-def _peut_voir_contributions(famille: Famille, current_user: User, beneficiaire_user_id: int | None) -> bool:
+def _peut_voir_contributions(
+    famille: Famille,
+    current_user: User,
+    beneficiaire_user_id: int | None,
+    beneficiaire_profil: Beneficiaire | None = None,
+) -> bool:
+    """Le Père/Mère Noël voit les autres cagnottes ; le créateur voit uniquement la sienne."""
     is_santa = famille.pere_noel_id == current_user.id
     is_creator = famille.creator_id == current_user.id
+    profil_est_santa = (
+        beneficiaire_profil is not None
+        and any(responsable.id == famille.pere_noel_id for responsable in beneficiaire_profil.responsables)
+    )
+    beneficiaire_est_santa = beneficiaire_user_id == famille.pere_noel_id or profil_est_santa
     return (
-        (is_santa and beneficiaire_user_id != famille.pere_noel_id)
-        or (is_creator and famille.pere_noel_id is not None and beneficiaire_user_id == famille.pere_noel_id)
+        (is_santa and not beneficiaire_est_santa)
+        or (is_creator and famille.pere_noel_id is not None and beneficiaire_est_santa)
     )
 
 
@@ -79,9 +90,10 @@ def _lister_cagnotte(
     *,
     beneficiaire_user_id: int | None = None,
     beneficiaire_profil_id: int | None = None,
+    beneficiaire_profil: Beneficiaire | None = None,
 ) -> List[Dict[str, Any]]:
     _famille_accessible(famille, current_user)
-    if not _peut_voir_contributions(famille, current_user, beneficiaire_user_id):
+    if not _peut_voir_contributions(famille, current_user, beneficiaire_user_id, beneficiaire_profil):
         raise HTTPException(status_code=403, detail="Vous n'avez pas accès aux détails de cette cagnotte")
     query = db.query(Contribution).filter(Contribution.famille_id == famille.id)
     if beneficiaire_profil_id is not None:
@@ -152,7 +164,7 @@ def lister_cagnotte_profil(
     if not profil:
         raise HTTPException(status_code=404, detail="Bénéficiaire non trouvé")
     famille = db.query(Famille).filter(Famille.id == profil.famille_id).first()
-    return _lister_cagnotte(db, current_user, famille, beneficiaire_profil_id=profil_id)
+    return _lister_cagnotte(db, current_user, famille, beneficiaire_profil_id=profil_id, beneficiaire_profil=profil)
 
 
 @router.post("/cadeaux/{cadeau_id}", response_model=ContributionResponse, status_code=status.HTTP_201_CREATED)
@@ -198,7 +210,7 @@ def lister_contributions_cadeau(
     famille = cadeau.familles[0]
     _famille_accessible(famille, current_user)
     if cadeau.beneficiaire_profil_id is not None:
-        return _lister_cagnotte(db, current_user, famille, beneficiaire_profil_id=cadeau.beneficiaire_profil_id)
+        return _lister_cagnotte(db, current_user, famille, beneficiaire_profil_id=cadeau.beneficiaire_profil_id, beneficiaire_profil=cadeau.beneficiaire_profil)
     recipient_id = cadeau.beneficiaires[0].id if cadeau.beneficiaires else cadeau.owner_id
     return _lister_cagnotte(db, current_user, famille, beneficiaire_user_id=recipient_id)
 
