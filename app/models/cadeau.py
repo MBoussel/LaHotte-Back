@@ -64,7 +64,7 @@ class Cadeau(Base):
     )
     contributions: Mapped[List["Contribution"]] = relationship(
         back_populates="cadeau",
-        cascade="all, delete-orphan"
+        passive_deletes=True
     )
     purchased_by: Mapped[Optional["User"]] = relationship(foreign_keys=[purchased_by_id])
     
