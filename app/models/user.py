@@ -36,9 +36,10 @@ class User(Base):
         foreign_keys="Cadeau.owner_id"
     )
     contributions: Mapped[List["Contribution"]] = relationship(
-    back_populates="user",
-    cascade="all, delete-orphan"
-)
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="Contribution.user_id",
+    )
 
     
     # Familles créées par l'utilisateur
