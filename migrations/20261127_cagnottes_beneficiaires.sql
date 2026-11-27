@@ -9,6 +9,36 @@ ALTER TABLE public.contributions
   ADD COLUMN IF NOT EXISTS famille_id integer NULL
     REFERENCES public.familles(id) ON DELETE CASCADE;
 
+-- Vérifier les données historiques avant toute attribution : ne jamais choisir
+-- arbitrairement une famille ou un bénéficiaire si l'ancien cadeau en avait plusieurs.
+DO $
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.contributions c
+    LEFT JOIN public.cadeau_familles cf ON cf.cadeau_id = c.cadeau_id
+    WHERE c.famille_id IS NULL
+    GROUP BY c.id
+    HAVING COUNT(cf.famille_id) <> 1
+  ) THEN
+    RAISE EXCEPTION 'Migration interrompue : une contribution historique est liée à un cadeau sans exactement une famille.';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.contributions c
+    JOIN public.cadeaux g ON g.id = c.cadeau_id
+    LEFT JOIN public.cadeau_beneficiaires cb ON cb.cadeau_id = g.id
+    WHERE c.beneficiaire_user_id IS NULL
+      AND c.beneficiaire_profil_id IS NULL
+    GROUP BY c.id, g.id, g.beneficiaire_profil_id
+    HAVING (g.beneficiaire_profil_id IS NOT NULL AND COUNT(cb.user_id) > 0)
+        OR (g.beneficiaire_profil_id IS NULL AND COUNT(cb.user_id) > 1)
+  ) THEN
+    RAISE EXCEPTION 'Migration interrompue : un cadeau historique possède plusieurs bénéficiaires. Corriger son destinataire avant la migration.';
+  END IF;
+END $;
+
 -- Les contributions historiques d'un cadeau sont attribuées à son profil,
 -- à son bénéficiaire utilisateur unique, ou au propriétaire de la liste.
 UPDATE public.contributions AS c
