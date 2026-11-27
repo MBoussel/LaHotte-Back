@@ -33,6 +33,25 @@ class CadeauVisibilityTests(unittest.TestCase):
         self.assertTrue(_cadeau_visible_pour_membre(santa_gift, self.family, self.creator))
         self.assertFalse(_cadeau_visible_pour_membre(other_gift, self.family, self.creator))
 
+    def test_creator_sees_legacy_gifts_owned_by_santa_without_beneficiary(self):
+        legacy_santa_gift = SimpleNamespace(
+            owner_id=self.santa.id,
+            beneficiaires=[],
+            beneficiaire_profil=None,
+        )
+        other_legacy_gift = SimpleNamespace(
+            owner_id=self.member.id,
+            beneficiaires=[],
+            beneficiaire_profil=None,
+        )
+
+        self.assertTrue(
+            _cadeau_visible_pour_membre(legacy_santa_gift, self.family, self.creator)
+        )
+        self.assertFalse(
+            _cadeau_visible_pour_membre(other_legacy_gift, self.family, self.creator)
+        )
+
     def test_santa_does_not_see_own_gifts(self):
         own_gift = SimpleNamespace(
             beneficiaires=[self.santa],
