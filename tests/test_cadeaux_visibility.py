@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from app.routers.cadeaux import _cadeau_visible_pour_membre
+from app.routers.cadeaux import _cadeau_accessible_pour_membre, _cadeau_visible_pour_membre
 
 
 def user(user_id):
@@ -17,6 +17,7 @@ class CadeauVisibilityTests(unittest.TestCase):
             id=10,
             creator_id=self.creator.id,
             pere_noel_id=self.santa.id,
+            membres=[self.creator, self.santa, self.member],
         )
 
     def test_creator_sees_only_gifts_for_santa(self):
@@ -58,6 +59,22 @@ class CadeauVisibilityTests(unittest.TestCase):
     def test_regular_member_sees_family_gifts(self):
         gift = SimpleNamespace(beneficiaires=[], beneficiaire_profil=None)
         self.assertTrue(_cadeau_visible_pour_membre(gift, self.family, self.member))
+
+    def test_creator_cannot_access_hidden_gift_through_mutation_routes(self):
+        hidden_gift = SimpleNamespace(
+            beneficiaires=[self.member],
+            beneficiaire_profil=None,
+            familles=[self.family],
+        )
+        self.assertFalse(_cadeau_accessible_pour_membre(hidden_gift, self.creator))
+
+    def test_santa_cannot_access_own_hidden_gift_through_mutation_routes(self):
+        own_gift = SimpleNamespace(
+            beneficiaires=[self.santa],
+            beneficiaire_profil=None,
+            familles=[self.family],
+        )
+        self.assertFalse(_cadeau_accessible_pour_membre(own_gift, self.santa))
 
 
 if __name__ == "__main__":
