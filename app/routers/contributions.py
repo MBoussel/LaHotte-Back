@@ -318,7 +318,31 @@ def statistiques_contributions(db: Session = Depends(get_db), current_user: User
 
 @router.get("/mes-contributions", response_model=List[ContributionResponse])
 def mes_contributions(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
-    return db.query(Contribution).filter(Contribution.user_id == current_user.id).all()
+    rows = db.query(Contribution).filter(
+        Contribution.user_id == current_user.id
+    ).order_by(Contribution.created_at.desc()).all()
+
+    result = []
+    for row in rows:
+        if row.beneficiaire_user_id is not None:
+            beneficiaire_nom = row.beneficiaire_user.username if row.beneficiaire_user else None
+        elif row.beneficiaire_profil_id is not None:
+            beneficiaire_nom = row.beneficiaire_profil.nom if row.beneficiaire_profil else None
+        else:
+            beneficiaire_nom = None
+
+        result.append({
+            "id": row.id,
+            "cadeau_id": row.cadeau_id,
+            "beneficiaire_user_id": row.beneficiaire_user_id,
+            "beneficiaire_profil_id": row.beneficiaire_profil_id,
+            "beneficiaire_nom": beneficiaire_nom,
+            "user_id": row.user_id,
+            "montant": row.montant,
+            "message": row.message or "",
+            "created_at": row.created_at,
+        })
+    return result
 
 
 @router.delete("/{contribution_id}", status_code=status.HTTP_204_NO_CONTENT)
