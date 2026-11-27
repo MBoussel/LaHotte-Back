@@ -33,6 +33,11 @@ WHERE c.cadeau_id = g.id
 -- Le cadeau source devient facultatif pour les contributions faites directement
 -- depuis la cagnotte globale. Les anciennes références restent conservées.
 ALTER TABLE public.contributions ALTER COLUMN cadeau_id DROP NOT NULL;
+ALTER TABLE public.contributions
+  DROP CONSTRAINT IF EXISTS contributions_cadeau_id_fkey;
+ALTER TABLE public.contributions
+  ADD CONSTRAINT contributions_cadeau_id_fkey
+  FOREIGN KEY (cadeau_id) REFERENCES public.cadeaux(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS ix_contributions_beneficiaire_user_id
   ON public.contributions (beneficiaire_user_id);
