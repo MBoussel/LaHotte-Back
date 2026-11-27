@@ -245,6 +245,69 @@ def lister_contributions_cadeau(
     return _lister_cagnotte(db, current_user, famille, beneficiaire_user_id=recipient_id)
 
 
+@router.get("/familles/{famille_id}/recap-contributeurs")
+def recap_totaux_contributeurs(
+    famille_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Totaux donnés par contributeur, réservés au Père/Mère Noël."""
+    from sqlalchemy import or_
+
+    famille = db.query(Famille).filter(Famille.id == famille_id).first()
+    if not famille:
+        raise HTTPException(status_code=404, detail="Famille non trouvée")
+    _famille_accessible(famille, current_user)
+
+    # Ne pas exposer ces totaux au créateur ni aux autres membres.
+    if famille.pere_noel_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Accès réservé au Père/Mère Noël")
+
+    profils = db.query(Beneficiaire).filter(
+        Beneficiaire.famille_id == famille.id
+    ).all()
+    user_ids = [m.id for m in famille.membres if m.id != famille.pere_noel_id]
+    profil_ids = [
+        profil.id for profil in profils
+        if all(responsable.id != famille.pere_noel_id for responsable in profil.responsables)
+    ]
+
+    conditions = []
+    if user_ids:
+        conditions.append(Contribution.beneficiaire_user_id.in_(user_ids))
+    if profil_ids:
+        conditions.append(Contribution.beneficiaire_profil_id.in_(profil_ids))
+
+    rows = (
+        db.query(Contribution)
+        .filter(
+            Contribution.famille_id == famille.id,
+            or_(*conditions) if conditions else False,
+        )
+        .all()
+    )
+
+    totaux = {}
+    for row in rows:
+        contributor = db.query(User).filter(User.id == row.user_id).first()
+        key = row.user_id
+        if key not in totaux:
+            totaux[key] = {
+                "contributeur_id": key,
+                "contributeur": contributor.username if contributor else "Compte supprimé",
+                "total_donne": 0.0,
+                "nb_contributions": 0,
+            }
+        totaux[key]["total_donne"] += float(row.montant)
+        totaux[key]["nb_contributions"] += 1
+
+    resultats = sorted(
+        totaux.values(),
+        key=lambda item: (-item["total_donne"], item["contributeur"].lower()),
+    )
+    return {"contributions_par_contributeur": resultats}
+
+
 @router.get("/statistics")
 def statistiques_contributions(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     from sqlalchemy import func
