@@ -603,9 +603,10 @@ def recap_contributions_famille(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Récapitulatif limité aux cadeaux visibles par le Père Noël ou le créateur."""
+    """Récapitulatif des cagnottes visibles par le Père/Mère Noël ou le créateur."""
+    from sqlalchemy import or_
     from app.models.contribution import Contribution
-    from app.models.cadeau import Cadeau
+    from app.models.beneficiaire import Beneficiaire
 
     famille = db.query(Famille).filter(Famille.id == famille_id).first()
     if not famille:
@@ -613,60 +614,89 @@ def recap_contributions_famille(
     if current_user not in famille.membres:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accès réservé aux membres de la famille")
 
-    is_pere_noel = famille.pere_noel_id == current_user.id
+    is_santa = famille.pere_noel_id == current_user.id
     is_creator = famille.creator_id == current_user.id
-    if not is_pere_noel and not (is_creator and famille.pere_noel_id is not None):
+    if not is_santa and not (is_creator and famille.pere_noel_id is not None):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accès refusé à ce récapitulatif")
 
-    if is_pere_noel:
-        cadeaux_visibles = [c for c in famille.cadeaux if c.owner_id != famille.pere_noel_id]
+    profils = db.query(Beneficiaire).filter(Beneficiaire.famille_id == famille.id).all()
+    if is_santa:
+        user_ids = [m.id for m in famille.membres if m.id != famille.pere_noel_id]
+        profils_visibles = [
+            p for p in profils
+            if all(r.id != famille.pere_noel_id for r in p.responsables)
+        ]
     else:
-        cadeaux_visibles = [c for c in famille.cadeaux if c.owner_id == famille.pere_noel_id]
+        user_ids = [famille.pere_noel_id]
+        profils_visibles = [
+            p for p in profils
+            if any(r.id == famille.pere_noel_id for r in p.responsables)
+        ]
 
-    cadeaux_ids = [c.id for c in cadeaux_visibles]
-    contributions = db.query(Contribution).filter(Contribution.famille_id == famille.id, Contribution.cadeau_id.in_(cadeaux_ids)).all() if cadeaux_ids else []
-    total_contribue = sum(float(c.montant) for c in contributions)
-    contributions_par_membre = {}
+    profil_ids = [p.id for p in profils_visibles]
+    conditions = []
+    if user_ids:
+        conditions.append(Contribution.beneficiaire_user_id.in_(user_ids))
+    if profil_ids:
+        conditions.append(Contribution.beneficiaire_profil_id.in_(profil_ids))
 
-    for contrib in contributions:
-        user = db.query(User).filter(User.id == contrib.user_id).first()
-        if not user:
+    contributions = (
+        db.query(Contribution)
+        .filter(
+            Contribution.famille_id == famille.id,
+            or_(*conditions) if conditions else False,
+        )
+        .order_by(Contribution.created_at.desc())
+        .all()
+    )
+
+    beneficiaires = {}
+    contributeurs = set()
+    for row in contributions:
+        if row.beneficiaire_user_id is not None:
+            beneficiary = db.query(User).filter(User.id == row.beneficiaire_user_id).first()
+            key = ("user", row.beneficiaire_user_id)
+            nom = beneficiary.username if beneficiary else "Compte supprimé"
+            kind = "utilisateur"
+        elif row.beneficiaire_profil_id is not None:
+            profil = next((p for p in profils_visibles if p.id == row.beneficiaire_profil_id), None)
+            if profil is None:
+                continue
+            key = ("profil", profil.id)
+            nom = profil.nom
+            kind = "profil"
+        else:
             continue
-        if user.id not in contributions_par_membre:
-            contributions_par_membre[user.id] = {
-                "user_id": user.id, "username": user.username, "email": user.email,
-                "total_contribue": 0, "nb_contributions": 0, "contributions": []
+
+        contributor = db.query(User).filter(User.id == row.user_id).first()
+        if key not in beneficiaires:
+            beneficiaires[key] = {
+                "beneficiaire_id": key[1],
+                "type": kind,
+                "nom": nom,
+                "total_contribue": 0.0,
+                "nb_contributions": 0,
+                "contributions": [],
             }
-        cadeau = db.query(Cadeau).filter(Cadeau.id == contrib.cadeau_id).first()
-        contributions_par_membre[user.id]["total_contribue"] += float(contrib.montant)
-        contributions_par_membre[user.id]["nb_contributions"] += 1
-        contributions_par_membre[user.id]["contributions"].append({
-            "id": contrib.id, "montant": float(contrib.montant), "message": contrib.message,
-            "created_at": contrib.created_at.isoformat(),
-            "cadeau_titre": cadeau.titre if cadeau else "Cadeau supprimé",
-            "cadeau_owner": cadeau.owner_id if cadeau else None
+        beneficiaires[key]["total_contribue"] += float(row.montant)
+        beneficiaires[key]["nb_contributions"] += 1
+        beneficiaires[key]["contributions"].append({
+            "id": row.id,
+            "montant": float(row.montant),
+            "created_at": row.created_at.isoformat(),
+            "contributeur": contributor.username if contributor else "Compte supprimé",
         })
+        contributeurs.add(row.user_id)
 
-    contributions_par_cadeau = {}
-    for cadeau in cadeaux_visibles:
-        cadeau_contribs = [c for c in contributions if c.cadeau_id == cadeau.id]
-        total_cadeau = sum(float(c.montant) for c in cadeau_contribs)
-        owner = db.query(User).filter(User.id == cadeau.owner_id).first()
-        prix = float(cadeau.prix)
-        contributions_par_cadeau[cadeau.id] = {
-            "cadeau_id": cadeau.id, "cadeau_titre": cadeau.titre, "cadeau_prix": prix,
-            "owner": owner.username if owner else "Inconnu", "total_contribue": total_cadeau,
-            "reste": prix - total_cadeau,
-            "pourcentage": (total_cadeau / prix * 100) if prix > 0 else 0,
-            "nb_contributions": len(cadeau_contribs)
-        }
-
+    groupes = sorted(beneficiaires.values(), key=lambda item: item["nom"].lower())
     return {
-        "famille_id": famille.id, "famille_nom": famille.nom,
+        "famille_id": famille.id,
+        "famille_nom": famille.nom,
         "stats_globales": {
-            "total_contribue": total_contribue, "nb_contributions": len(contributions),
-            "nb_cadeaux": len(cadeaux_visibles), "nb_contributeurs": len(contributions_par_membre)
+            "total_contribue": sum(item["total_contribue"] for item in groupes),
+            "nb_contributions": len(contributions),
+            "nb_beneficiaires": len(groupes),
+            "nb_contributeurs": len(contributeurs),
         },
-        "contributions_par_membre": list(contributions_par_membre.values()),
-        "contributions_par_cadeau": list(contributions_par_cadeau.values())
+        "contributions_par_beneficiaire": groupes,
     }
