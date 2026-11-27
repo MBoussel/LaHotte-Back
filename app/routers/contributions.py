@@ -46,12 +46,18 @@ def _beneficiaire_visible_pour_membre(
     beneficiaire_user_id: int | None,
     beneficiaire_profil: Beneficiaire | None = None,
 ) -> bool:
-    """Tout membre peut contribuer à la cagnotte d'un autre membre.
+    """Tout membre peut contribuer à la cagnotte d'un autre membre, jamais à la sienne.
 
-    Les rôles Père/Mère Noël et créateur limitent uniquement la consultation
-    des détails des contributions, jamais la possibilité de contribuer.
+    Les rôles Père/Mère Noël et créateur ne limitent pas les contributions.
     L'appartenance à la famille est vérifiée séparément.
     """
+    if beneficiaire_user_id == current_user.id:
+        return False
+    if beneficiaire_profil is not None and any(
+        responsable.id == current_user.id
+        for responsable in beneficiaire_profil.responsables
+    ):
+        return False
     return True
 
 
