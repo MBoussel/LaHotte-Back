@@ -185,6 +185,15 @@ def lister_mes_cadeaux(
     
     result = []
     for cadeau in cadeaux:
+        familles_accessibles = [
+            famille for famille in cadeau.familles
+            if current_user in famille.membres
+        ]
+        if not any(
+            _cadeau_visible_pour_membre(cadeau, famille, current_user)
+            for famille in familles_accessibles
+        ):
+            continue
         result.append({
             "id": cadeau.id,
             "titre": cadeau.titre,
@@ -405,6 +414,15 @@ def lister_cadeaux_beneficiaire(
     
     result = []
     for cadeau in cadeaux:
+        familles_accessibles = [
+            famille for famille in cadeau.familles
+            if current_user in famille.membres
+        ]
+        if not any(
+            _cadeau_visible_pour_membre(cadeau, famille, current_user)
+            for famille in familles_accessibles
+        ):
+            continue
         result.append({
             "id": cadeau.id,
             "titre": cadeau.titre,
