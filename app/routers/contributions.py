@@ -62,7 +62,7 @@ def _creer_contribution(
         beneficiaire_profil_id=beneficiaire_profil_id,
         user_id=current_user.id,
         montant=contribution.montant,
-        message=contribution.message or "",
+        message="",
         is_anonymous=False,
     )
     db.add(row)
