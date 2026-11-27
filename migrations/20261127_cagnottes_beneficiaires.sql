@@ -72,7 +72,7 @@ WHERE c.cadeau_id = cf.cadeau_id
 
 -- Échouer explicitement plutôt que déployer avec des contributions sans famille
 -- ou ambiguës : aucune donnée n'est supprimée.
-DO $$$
+DO $
 BEGIN
   IF EXISTS (
     SELECT 1 FROM public.contributions WHERE famille_id IS NULL
