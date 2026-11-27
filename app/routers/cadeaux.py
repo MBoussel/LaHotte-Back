@@ -44,6 +44,18 @@ def _cadeau_visible_pour_membre(cadeau: Cadeau, famille: Famille, current_user: 
     return True
 
 
+def _cadeau_accessible_pour_membre(cadeau: Cadeau, current_user: User) -> bool:
+    """Vérifie l'accès au cadeau dans au moins une famille commune."""
+    familles_accessibles = [
+        famille for famille in cadeau.familles
+        if current_user in famille.membres
+    ]
+    return any(
+        _cadeau_visible_pour_membre(cadeau, famille, current_user)
+        for famille in familles_accessibles
+    )
+
+
 
 @router.post("/photo")
 async def televerser_photo_cadeau(
@@ -226,14 +238,7 @@ def recuperer_cadeau(
         )
     
     # L'accès dépend des règles de visibilité de chaque famille.
-    familles_accessibles = [
-        famille for famille in cadeau.familles
-        if current_user in famille.membres
-    ]
-    if not familles_accessibles or not any(
-        _cadeau_visible_pour_membre(cadeau, famille, current_user)
-        for famille in familles_accessibles
-    ):
+    if not _cadeau_accessible_pour_membre(cadeau, current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Vous n'avez pas accès à ce cadeau"
@@ -267,6 +272,12 @@ def modifier_cadeau(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cadeau non trouvé"
+        )
+
+    if not _cadeau_accessible_pour_membre(cadeau, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vous n'avez pas accès à ce cadeau"
         )
     
     if cadeau.owner_id != current_user.id:
@@ -339,6 +350,12 @@ def supprimer_cadeau(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cadeau non trouvé"
+        )
+
+    if not _cadeau_accessible_pour_membre(cadeau, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vous n'avez pas accès à ce cadeau"
         )
     
     if cadeau.owner_id != current_user.id:
