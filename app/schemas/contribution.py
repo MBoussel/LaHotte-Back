@@ -6,7 +6,6 @@ from datetime import datetime
 
 class ContributionCreate(BaseModel):
     montant: float = Field(..., ge=0.01, description="Montant de la contribution")
-    message: Optional[str] = Field("", max_length=500, description="Message optionnel")
 
 
 class ContributionResponse(BaseModel):
