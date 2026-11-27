@@ -14,6 +14,36 @@ from app.core.profile_storage import upload_profile_photo
 
 router = APIRouter(prefix="/cadeaux", tags=["cadeaux"])
 
+def _cadeau_visible_pour_membre(cadeau: Cadeau, famille: Famille, current_user: User) -> bool:
+    """Applique les règles de visibilité des cadeaux dans une famille.
+
+    - Le créateur ne voit que les cadeaux destinés au Père/Mère Noël.
+    - Le Père/Mère Noël ne voit pas ses propres cadeaux.
+    - Les autres membres voient les cadeaux de la famille.
+    """
+    beneficiaire_est_santa = (
+        famille.pere_noel_id is not None
+        and (
+            any(user.id == famille.pere_noel_id for user in cadeau.beneficiaires)
+            or (
+                cadeau.beneficiaire_profil is not None
+                and any(
+                    responsable.id == famille.pere_noel_id
+                    for responsable in cadeau.beneficiaire_profil.responsables
+                )
+            )
+        )
+    )
+
+    if current_user.id == famille.creator_id:
+        return beneficiaire_est_santa and famille.pere_noel_id is not None
+
+    if current_user.id == famille.pere_noel_id:
+        return not beneficiaire_est_santa
+
+    return True
+
+
 
 @router.post("/photo")
 async def televerser_photo_cadeau(
@@ -126,7 +156,9 @@ def lister_tous_cadeaux(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Récupérer tous les cadeaux (visible uniquement aux admins ou pour debug)."""
+    """Récupérer tous les cadeaux (administrateurs uniquement)."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accès réservé aux administrateurs")
     cadeaux = db.query(Cadeau).offset(skip).limit(limit).all()
     return [{
         "id": cadeau.id,
@@ -184,9 +216,15 @@ def recuperer_cadeau(
             detail="Cadeau non trouvé"
         )
     
-    # Vérifier que je suis membre d'au moins une famille qui contient ce cadeau
-    is_member = any(current_user in famille.membres for famille in cadeau.familles)
-    if not is_member and cadeau.owner_id != current_user.id:
+    # L'accès dépend des règles de visibilité de chaque famille.
+    familles_accessibles = [
+        famille for famille in cadeau.familles
+        if current_user in famille.membres
+    ]
+    if not familles_accessibles or not any(
+        _cadeau_visible_pour_membre(cadeau, famille, current_user)
+        for famille in familles_accessibles
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Vous n'avez pas accès à ce cadeau"
@@ -334,6 +372,8 @@ def lister_cadeaux_famille(
     
     result = []
     for cadeau in famille.cadeaux:
+        if not _cadeau_visible_pour_membre(cadeau, famille, current_user):
+            continue
         result.append({
             "id": cadeau.id,
             "titre": cadeau.titre,
