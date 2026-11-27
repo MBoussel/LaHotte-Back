@@ -15,36 +15,12 @@ from app.core.profile_storage import upload_profile_photo
 router = APIRouter(prefix="/cadeaux", tags=["cadeaux"])
 
 def _cadeau_visible_pour_membre(cadeau: Cadeau, famille: Famille, current_user: User) -> bool:
-    """Applique les règles de visibilité des cadeaux dans une famille.
+    """Tous les membres d'une famille voient tous ses cadeaux.
 
-    - Le créateur ne voit que les cadeaux destinés au Père/Mère Noël.
-    - Le Père/Mère Noël ne voit pas ses propres cadeaux.
-    - Les autres membres voient les cadeaux de la famille.
+    La confidentialité concerne les détails des contributions, gérés
+    exclusivement par le routeur contributions.
     """
-    beneficiaire_est_santa = (
-        famille.pere_noel_id is not None
-        and (
-# Compatibilité historique : les cadeaux du Père/Mère Noël étaient repérés par leur propriétaire.
-            getattr(cadeau, "owner_id", None) == famille.pere_noel_id
-            or             any(user.id == famille.pere_noel_id for user in cadeau.beneficiaires)
-            or (
-                cadeau.beneficiaire_profil is not None
-                and any(
-                    responsable.id == famille.pere_noel_id
-                    for responsable in cadeau.beneficiaire_profil.responsables
-                )
-            )
-        )
-    )
-
-    if current_user.id == famille.creator_id:
-        return beneficiaire_est_santa and famille.pere_noel_id is not None
-
-    if current_user.id == famille.pere_noel_id:
-        return not beneficiaire_est_santa
-
     return True
-
 
 def _cadeau_accessible_pour_membre(cadeau: Cadeau, current_user: User) -> bool:
     """Vérifie l'accès au cadeau dans au moins une famille commune."""

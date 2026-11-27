@@ -20,80 +20,38 @@ class CadeauVisibilityTests(unittest.TestCase):
             membres=[self.creator, self.santa, self.member],
         )
 
-    def test_creator_sees_only_gifts_for_santa(self):
-        santa_gift = SimpleNamespace(
-            beneficiaires=[self.santa],
-            beneficiaire_profil=None,
-        )
-        other_gift = SimpleNamespace(
-            beneficiaires=[self.member],
-            beneficiaire_profil=None,
-        )
+    def test_every_family_member_sees_every_gift(self):
+        gifts = [
+            SimpleNamespace(owner_id=self.creator.id, beneficiaires=[self.member], beneficiaire_profil=None),
+            SimpleNamespace(owner_id=self.member.id, beneficiaires=[self.santa], beneficiaire_profil=None),
+            SimpleNamespace(owner_id=self.santa.id, beneficiaires=[], beneficiaire_profil=None),
+            SimpleNamespace(owner_id=self.member.id, beneficiaires=[], beneficiaire_profil=None),
+        ]
+        for gift in gifts:
+            for member in (self.creator, self.santa, self.member):
+                with self.subTest(owner=gift.owner_id, member=member.id):
+                    self.assertTrue(_cadeau_visible_pour_membre(gift, self.family, member))
 
-        self.assertTrue(_cadeau_visible_pour_membre(santa_gift, self.family, self.creator))
-        self.assertFalse(_cadeau_visible_pour_membre(other_gift, self.family, self.creator))
-
-    def test_creator_sees_legacy_gifts_owned_by_santa_without_beneficiary(self):
-        legacy_santa_gift = SimpleNamespace(
-            owner_id=self.santa.id,
-            beneficiaires=[],
-            beneficiaire_profil=None,
-        )
-        other_legacy_gift = SimpleNamespace(
+    def test_every_family_member_can_access_any_family_gift(self):
+        gift = SimpleNamespace(
             owner_id=self.member.id,
-            beneficiaires=[],
-            beneficiaire_profil=None,
-        )
-
-        self.assertTrue(
-            _cadeau_visible_pour_membre(legacy_santa_gift, self.family, self.creator)
-        )
-        self.assertFalse(
-            _cadeau_visible_pour_membre(other_legacy_gift, self.family, self.creator)
-        )
-
-    def test_santa_does_not_see_own_gifts(self):
-        own_gift = SimpleNamespace(
-            beneficiaires=[self.santa],
-            beneficiaire_profil=None,
-        )
-        other_gift = SimpleNamespace(
-            beneficiaires=[self.member],
-            beneficiaire_profil=None,
-        )
-
-        self.assertFalse(_cadeau_visible_pour_membre(own_gift, self.family, self.santa))
-        self.assertTrue(_cadeau_visible_pour_membre(other_gift, self.family, self.santa))
-
-    def test_profile_managed_by_santa_is_treated_as_santa_beneficiary(self):
-        profile = SimpleNamespace(responsables=[self.santa])
-        profile_gift = SimpleNamespace(
-            beneficiaires=[],
-            beneficiaire_profil=profile,
-        )
-
-        self.assertTrue(_cadeau_visible_pour_membre(profile_gift, self.family, self.creator))
-        self.assertFalse(_cadeau_visible_pour_membre(profile_gift, self.family, self.santa))
-
-    def test_regular_member_sees_family_gifts(self):
-        gift = SimpleNamespace(beneficiaires=[], beneficiaire_profil=None)
-        self.assertTrue(_cadeau_visible_pour_membre(gift, self.family, self.member))
-
-    def test_creator_cannot_access_hidden_gift_through_mutation_routes(self):
-        hidden_gift = SimpleNamespace(
             beneficiaires=[self.member],
             beneficiaire_profil=None,
             familles=[self.family],
         )
-        self.assertFalse(_cadeau_accessible_pour_membre(hidden_gift, self.creator))
+        for member in (self.creator, self.santa, self.member):
+            with self.subTest(member=member.id):
+                self.assertTrue(_cadeau_accessible_pour_membre(gift, member))
 
-    def test_santa_cannot_access_own_hidden_gift_through_mutation_routes(self):
-        own_gift = SimpleNamespace(
-            beneficiaires=[self.santa],
+    def test_non_member_cannot_access_family_gift(self):
+        outsider = user(99)
+        gift = SimpleNamespace(
+            owner_id=self.member.id,
+            beneficiaires=[self.member],
             beneficiaire_profil=None,
             familles=[self.family],
         )
-        self.assertFalse(_cadeau_accessible_pour_membre(own_gift, self.santa))
+        self.assertFalse(_cadeau_accessible_pour_membre(gift, outsider))
 
 
 if __name__ == "__main__":
