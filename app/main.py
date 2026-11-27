@@ -21,7 +21,7 @@ app = FastAPI(
 # Configuration CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "https://deploy-preview-11--lahotte.netlify.app"],  # Site public + aperçu de la PR famille
+    allow_origins=[settings.FRONTEND_URL, "https://deploy-preview-11--lahotte.netlify.app", "https://deploy-preview-40--lahotte.netlify.app"],  # Site public + aperçus validés
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
