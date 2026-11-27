@@ -11,7 +11,7 @@ ALTER TABLE public.contributions
 
 -- Vérifier les données historiques avant toute attribution : ne jamais choisir
 -- arbitrairement une famille ou un bénéficiaire si l'ancien cadeau en avait plusieurs.
-DO $
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -37,7 +37,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Migration interrompue : un cadeau historique possède plusieurs bénéficiaires. Corriger son destinataire avant la migration.';
   END IF;
-END $;
+END $$;
 
 -- Les contributions historiques d'un cadeau sont attribuées à son profil,
 -- à son bénéficiaire utilisateur unique, ou au propriétaire de la liste.
@@ -72,7 +72,7 @@ WHERE c.cadeau_id = cf.cadeau_id
 
 -- Échouer explicitement plutôt que déployer avec des contributions sans famille
 -- ou ambiguës : aucune donnée n'est supprimée.
-DO $$
+DO $$$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM public.contributions WHERE famille_id IS NULL
