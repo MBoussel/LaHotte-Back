@@ -40,6 +40,26 @@ def _peut_voir_contributions(
     )
 
 
+def _beneficiaire_visible_pour_membre(
+    famille: Famille,
+    current_user: User,
+    beneficiaire_user_id: int | None,
+    beneficiaire_profil: Beneficiaire | None = None,
+) -> bool:
+    """Applique les mêmes limites de visibilité lors d'une contribution."""
+    profil_est_santa = (
+        beneficiaire_profil is not None
+        and any(responsable.id == famille.pere_noel_id for responsable in beneficiaire_profil.responsables)
+    )
+    beneficiaire_est_santa = beneficiaire_user_id == famille.pere_noel_id or profil_est_santa
+
+    if current_user.id == famille.creator_id:
+        return famille.pere_noel_id is not None and beneficiaire_est_santa
+    if current_user.id == famille.pere_noel_id:
+        return not beneficiaire_est_santa
+    return True
+
+
 def _creer_contribution(
     db: Session,
     current_user: User,
@@ -53,6 +73,7 @@ def _creer_contribution(
     _famille_accessible(famille, current_user)
     if beneficiaire_user_id is not None and beneficiaire_user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Vous ne pouvez pas contribuer à votre propre cagnotte")
+    profil = None
     if beneficiaire_profil_id is not None:
         profil = db.query(Beneficiaire).filter(
             Beneficiaire.id == beneficiaire_profil_id,
@@ -66,6 +87,14 @@ def _creer_contribution(
             raise HTTPException(status_code=404, detail="Bénéficiaire introuvable dans cette famille")
     else:
         raise HTTPException(status_code=400, detail="Bénéficiaire manquant")
+
+    if not _beneficiaire_visible_pour_membre(
+        famille, current_user, beneficiaire_user_id, profil
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Vous ne pouvez pas contribuer à cette cagnotte"
+        )
 
     row = Contribution(
         famille_id=famille.id,
