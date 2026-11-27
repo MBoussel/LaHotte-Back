@@ -57,6 +57,7 @@ def _creer_contribution(
         raise HTTPException(status_code=400, detail="Bénéficiaire manquant")
 
     row = Contribution(
+        famille_id=famille.id,
         cadeau_id=cadeau_id,
         beneficiaire_user_id=beneficiaire_user_id,
         beneficiaire_profil_id=beneficiaire_profil_id,
@@ -82,7 +83,7 @@ def _lister_cagnotte(
     _famille_accessible(famille, current_user)
     if not _peut_voir_contributions(famille, current_user, beneficiaire_user_id):
         raise HTTPException(status_code=403, detail="Vous n'avez pas accès aux détails de cette cagnotte")
-    query = db.query(Contribution)
+    query = db.query(Contribution).filter(Contribution.famille_id == famille.id)
     if beneficiaire_profil_id is not None:
         query = query.filter(Contribution.beneficiaire_profil_id == beneficiaire_profil_id)
     else:
