@@ -58,15 +58,20 @@ class ContributionVisibilityTests(unittest.TestCase):
             )
         )
 
-    def test_creator_can_contribute_only_to_santa_beneficiary(self):
+    def test_creator_can_contribute_to_any_other_member(self):
         self.assertTrue(
             _beneficiaire_visible_pour_membre(
                 self.family, self.creator, self.santa.id
             )
         )
-        self.assertFalse(
+        self.assertTrue(
             _beneficiaire_visible_pour_membre(
                 self.family, self.creator, self.member.id
+            )
+        )
+        self.assertFalse(
+            _beneficiaire_visible_pour_membre(
+                self.family, self.creator, self.creator.id
             )
         )
 
