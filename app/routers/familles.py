@@ -624,7 +624,7 @@ def recap_contributions_famille(
         cadeaux_visibles = [c for c in famille.cadeaux if c.owner_id == famille.pere_noel_id]
 
     cadeaux_ids = [c.id for c in cadeaux_visibles]
-    contributions = db.query(Contribution).filter(Contribution.cadeau_id.in_(cadeaux_ids)).all() if cadeaux_ids else []
+    contributions = db.query(Contribution).filter(Contribution.famille_id == famille.id, Contribution.cadeau_id.in_(cadeaux_ids)).all() if cadeaux_ids else []
     total_contribue = sum(float(c.montant) for c in contributions)
     contributions_par_membre = {}
 
