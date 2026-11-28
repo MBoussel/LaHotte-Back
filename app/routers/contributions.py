@@ -46,19 +46,17 @@ def _beneficiaire_visible_pour_membre(
     beneficiaire_user_id: int | None,
     beneficiaire_profil: Beneficiaire | None = None,
 ) -> bool:
-    """Tout membre peut contribuer à la cagnotte d'un autre membre, jamais à la sienne.
+    """Tout membre peut contribuer aux profils bénéficiaires et aux cagnottes
+    des autres comptes, mais jamais à sa propre cagnotte personnelle.
 
+    Les responsables d'un profil peuvent donc contribuer à ce profil.
     Les rôles Père/Mère Noël et créateur ne limitent pas les contributions.
     L'appartenance à la famille est vérifiée séparément.
     """
-    if beneficiaire_user_id == current_user.id:
-        return False
-    if beneficiaire_profil is not None and any(
-        responsable.id == current_user.id
-        for responsable in beneficiaire_profil.responsables
-    ):
-        return False
-    return True
+    # Un profil bénéficiaire (ex. un enfant) est une cagnotte distincte
+    # de celle de ses responsables : ceux-ci peuvent donc y contribuer.
+    # Seule la cagnotte personnelle du compte connecté reste interdite.
+    return beneficiaire_user_id != current_user.id
 
 
 def _creer_contribution(
