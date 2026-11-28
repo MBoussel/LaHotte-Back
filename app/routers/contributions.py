@@ -51,14 +51,10 @@ def _beneficiaire_visible_pour_membre(
     Les rôles Père/Mère Noël et créateur ne limitent pas les contributions.
     L'appartenance à la famille est vérifiée séparément.
     """
-    if beneficiaire_user_id == current_user.id:
-        return False
-    if beneficiaire_profil is not None and any(
-        responsable.id == current_user.id
-        for responsable in beneficiaire_profil.responsables
-    ):
-        return False
-    return True
+    # Un profil bénéficiaire (ex. un enfant) est une cagnotte distincte
+    # de celle de ses responsables : ceux-ci peuvent donc y contribuer.
+    # Seule la cagnotte personnelle du compte connecté reste interdite.
+    return beneficiaire_user_id != current_user.id
 
 
 def _creer_contribution(
